@@ -5,7 +5,7 @@ use iced::widget::{button, column, container, mouse_area, row, scrollable, text,
 use iced::{alignment, Element, Fill, Length, Task, Theme};
 
 use crate::fluent::{
-    HEIGHT_LIST_ROW, NAV_PANE_WIDTH, PAGE_PADDING_H, PAGE_PADDING_V, RADIUS_CONTROL, SPACE_LG,
+    HEIGHT_LIST_ROW, NAV_PANE_WIDTH, PAGE_PADDING_H, RADIUS_CONTROL, SPACE_LG,
     SPACE_SM, SPACE_XS,
 };
 use crate::widget::tree_icons;
@@ -80,8 +80,7 @@ impl DirectoryTreeWidget {
                 .into()
         };
 
-        container(scrollable(content).height(Fill))
-            .padding([PAGE_PADDING_V, 0.0])
+        container(scrollable(content).width(Fill).height(Fill))
             .width(self.width)
             .height(Fill)
             .style(panel_container)

@@ -121,7 +121,7 @@ impl App {
         }
     }
 
-    pub fn subscription(_state: &Self) -> Subscription<Message> {
+    pub fn subscription(state: &Self) -> Subscription<Message> {
         Subscription::batch([
             keyboard::listen().filter_map(|event| {
                 if let keyboard::Event::KeyPressed { key, modifiers, .. } = event {
@@ -132,6 +132,7 @@ impl App {
             }),
             system::theme_changes()
                 .map(|mode| Message::Theme(theme::Message::SystemChanged(mode))),
+            state.file_list.subscription().map(Message::FileList),
         ])
     }
 
