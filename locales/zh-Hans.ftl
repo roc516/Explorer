@@ -38,6 +38,14 @@ preview-encoding-utf16le = UTF-16 LE
 preview-encoding-utf16be = UTF-16 BE
 preview-encoding-latin1 = Latin-1
 preview-decode-failed = 无法用所选编码解码此文件
+preview-word-failed = 无法读取 Word 文档
+preview-word-document = Word 文档
+preview-ppt-failed = 无法读取 PowerPoint 演示文稿
+preview-ppt-document = PowerPoint
+preview-ppt-slides = { $count } 张幻灯片
+preview-pdf-failed = 无法读取 PDF 文档
+preview-pdf-document = PDF
+preview-pdf-pages = { $count } 页
 preview-zoom-fit = 适应窗口
 
 column-name = 名称

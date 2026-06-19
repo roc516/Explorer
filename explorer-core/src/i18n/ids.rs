@@ -38,6 +38,14 @@ pub const PREVIEW_ENCODING_UTF16LE: &str = "preview-encoding-utf16le";
 pub const PREVIEW_ENCODING_UTF16BE: &str = "preview-encoding-utf16be";
 pub const PREVIEW_ENCODING_LATIN1: &str = "preview-encoding-latin1";
 pub const PREVIEW_DECODE_FAILED: &str = "preview-decode-failed";
+pub const PREVIEW_WORD_FAILED: &str = "preview-word-failed";
+pub const PREVIEW_WORD_DOCUMENT: &str = "preview-word-document";
+pub const PREVIEW_PPT_FAILED: &str = "preview-ppt-failed";
+pub const PREVIEW_PPT_DOCUMENT: &str = "preview-ppt-document";
+pub const PREVIEW_PPT_SLIDES: &str = "preview-ppt-slides";
+pub const PREVIEW_PDF_FAILED: &str = "preview-pdf-failed";
+pub const PREVIEW_PDF_DOCUMENT: &str = "preview-pdf-document";
+pub const PREVIEW_PDF_PAGES: &str = "preview-pdf-pages";
 pub const PREVIEW_ZOOM_FIT: &str = "preview-zoom-fit";
 
 pub const COLUMN_NAME: &str = "column-name";

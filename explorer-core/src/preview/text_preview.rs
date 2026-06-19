@@ -1,4 +1,9 @@
+use std::fs;
+use std::path::Path;
+
 use encoding_rs::{GBK, UTF_16BE, UTF_16LE, WINDOWS_1252};
+
+const MAX_BYTES: u64 = 512 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextEncoding {
@@ -66,6 +71,62 @@ impl TextPreview {
         self.resolved_encoding = resolved_encoding;
         Ok(())
     }
+}
+
+pub fn is_extension(ext: &str) -> bool {
+    matches!(
+        ext,
+        "txt"
+            | "md"
+            | "markdown"
+            | "json"
+            | "xml"
+            | "html"
+            | "htm"
+            | "css"
+            | "js"
+            | "ts"
+            | "tsx"
+            | "jsx"
+            | "rs"
+            | "toml"
+            | "yaml"
+            | "yml"
+            | "ftl"
+            | "log"
+            | "ini"
+            | "cfg"
+            | "conf"
+            | "csv"
+            | "sql"
+            | "sh"
+            | "bat"
+            | "ps1"
+            | "c"
+            | "cpp"
+            | "h"
+            | "hpp"
+            | "cs"
+            | "go"
+            | "java"
+            | "kt"
+            | "py"
+            | "rb"
+            | "php"
+            | "swift"
+            | "zig"
+            | "lua"
+            | "env"
+    )
+}
+
+pub fn load_from_path(path: &Path, size: u64) -> Result<TextPreview, String> {
+    if size > MAX_BYTES {
+        return Err("preview-too-large".to_string());
+    }
+
+    let bytes = fs::read(path).map_err(|err| err.to_string())?;
+    TextPreview::from_bytes(bytes)
 }
 
 pub fn detect_encoding(bytes: &[u8]) -> TextEncoding {

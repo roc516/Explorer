@@ -1,3 +1,4 @@
+mod document;
 mod image;
 mod text;
 
@@ -5,7 +6,11 @@ use std::path::PathBuf;
 
 use explorer_core::{ids, LanguageBundle, PreviewFile, PreviewKind};
 use fluent::{FluentArgs, FluentValue};
-use iced::widget::{button, column, container, mouse_area, rule, row, text as text_widget, Space};
+use iced::widget::{
+    button, column, container, mouse_area, rule, row, scrollable,
+    text as text_widget, text_editor as text_editor_widget, Space,
+};
+use iced::widget::{scrollable::Direction, text_editor};
 use iced::{alignment, Element, Fill, Length, Task, Theme};
 use lucide_icons::Icon;
 
@@ -26,6 +31,7 @@ pub struct PreviewState {
     pub error: Option<String>,
     pub text: Option<text::Text>,
     pub image: Option<image::Image>,
+    pub document: Option<document::Document>,
 }
 
 impl PreviewState {
@@ -38,6 +44,7 @@ impl PreviewState {
             error: None,
             text: None,
             image: None,
+            document: None,
         }
     }
 
@@ -45,6 +52,7 @@ impl PreviewState {
         self.error = None;
         self.text = text::Text::for_file(&file);
         self.image = image::Image::for_file(&file);
+        self.document = document::Document::for_file(&file);
         self.file = Some(file);
     }
 }
@@ -86,7 +94,11 @@ impl PreviewDialogWidget {
             && state.error.is_none()
             && matches!(
                 state.file.as_ref().map(|file| &file.kind),
-                Some(PreviewKind::Text(_)) | Some(PreviewKind::Image(_))
+                Some(PreviewKind::Text(_))
+                    | Some(PreviewKind::Image(_))
+                    | Some(PreviewKind::Word(_))
+                    | Some(PreviewKind::Ppt(_))
+                    | Some(PreviewKind::Pdf(_))
             );
 
         let body_height = if show_status_bar {
@@ -128,6 +140,12 @@ impl PreviewDialogWidget {
                                 image_preview,
                                 file,
                             ));
+                        }
+                    }
+                    PreviewKind::Word(_) | PreviewKind::Ppt(_) | PreviewKind::Pdf(_) => {
+                        if state.document.is_some() {
+                            dialog_sections.push(rule::horizontal(1).style(dialog_divider).into());
+                            dialog_sections.push(document::status_bar(bundle, file));
                         }
                     }
                     PreviewKind::Unsupported { .. } => {}
@@ -220,8 +238,47 @@ fn body_for_file<'a>(
             .as_ref()
             .map(|image| image::view(image_preview, image.zoom))
             .unwrap_or_else(|| preview_message(bundle.tr(ids::PREVIEW_LOAD_FAILED), true)),
+        PreviewKind::Word(_) | PreviewKind::Ppt(_) | PreviewKind::Pdf(_) => state
+            .document
+            .as_ref()
+            .map(|document| document::view(bundle, document))
+            .unwrap_or_else(|| preview_message(bundle.tr(ids::PREVIEW_LOAD_FAILED), true)),
         PreviewKind::Unsupported { extension } => unsupported_message(bundle, extension),
     }
+}
+
+pub(super) fn read_only_editor<'a>(
+    content: &'a text_editor::Content,
+    on_action: impl Fn(text_editor::Action) -> AppMessage + 'a,
+) -> Element<'a, AppMessage> {
+    scrollable(
+        text_editor_widget(content)
+            .on_action(on_action)
+            .size(13)
+            .line_height(iced::widget::text::LineHeight::Absolute(iced::Pixels(20.0)))
+            .height(Length::Shrink)
+            .style(document_editor_style),
+    )
+    .direction(Direction::Vertical(scrollable::Scrollbar::default()))
+    .width(Fill)
+    .height(Fill)
+    .into()
+}
+
+pub(super) fn document_editor_style(
+    theme: &Theme,
+    status: text_editor::Status,
+) -> text_editor::Style {
+    let palette = theme.extended_palette();
+    let mut style = text_editor::default(theme, status);
+    style.background = iced::Background::Color(iced::Color::TRANSPARENT);
+    style.border = iced::Border {
+        width: 0.0,
+        radius: 0.0.into(),
+        color: iced::Color::TRANSPARENT,
+    };
+    style.value = palette.background.base.text;
+    style
 }
 
 pub(super) fn preview_message(message: String, is_error: bool) -> Element<'static, AppMessage> {

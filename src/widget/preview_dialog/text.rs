@@ -1,9 +1,9 @@
 use std::fmt;
 
 use explorer_core::{ids, LanguageBundle, PreviewFile, PreviewKind, TextEncoding, TextPreview};
-use iced::widget::{container, pick_list, row, text, text_editor as text_editor_widget, Space};
+use iced::widget::{container, pick_list, row, text, Space};
 use iced::widget::text_editor;
-use iced::{alignment, Element, Fill, Length, Theme};
+use iced::{alignment, Element, Fill, Length};
 
 use crate::fluent::{
     FONT_SIZE_CAPTION, HEIGHT_PREVIEW_STATUS_BAR, PAGE_PADDING_H, SPACE_MD, SPACE_XS,
@@ -11,7 +11,7 @@ use crate::fluent::{
 use crate::message::{preview, Message as AppMessage};
 use crate::widget::style::{error_text, pick_list_style};
 
-use super::{preview_message, preview_status_bar, status_muted_text};
+use super::{preview_message, preview_status_bar, read_only_editor, status_muted_text};
 
 #[derive(Debug, Clone)]
 pub struct Text {
@@ -97,17 +97,7 @@ pub fn view<'a>(bundle: LanguageBundle, text: &'a Text) -> Element<'a, AppMessag
         return preview_message(bundle.tr(ids::PREVIEW_LOADING), false);
     };
 
-    container(
-        text_editor_widget(content)
-            .on_action(|action| AppMessage::Preview(preview::Message::TextEditor(action)))
-            .size(13)
-            .line_height(iced::widget::text::LineHeight::Absolute(iced::Pixels(20.0)))
-            .height(Fill)
-            .style(text_editor_preview),
-    )
-    .width(Fill)
-    .height(Fill)
-    .into()
+    read_only_editor(content, |action| AppMessage::Preview(preview::Message::TextEditor(action)))
 }
 
 pub fn status_bar(
@@ -145,19 +135,6 @@ pub fn status_bar(
     .height(Length::Fixed(HEIGHT_PREVIEW_STATUS_BAR))
     .style(preview_status_bar)
     .into()
-}
-
-fn text_editor_preview(theme: &Theme, status: text_editor::Status) -> text_editor::Style {
-    let palette = theme.extended_palette();
-    let mut style = text_editor::default(theme, status);
-    style.background = iced::Background::Color(iced::Color::TRANSPARENT);
-    style.border = iced::Border {
-        width: 0.0,
-        radius: 0.0.into(),
-        color: iced::Color::TRANSPARENT,
-    };
-    style.value = palette.background.base.text;
-    style
 }
 
 fn encoding_error_label(message: String) -> Element<'static, AppMessage> {

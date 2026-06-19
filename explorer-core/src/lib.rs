@@ -4,7 +4,6 @@ mod i18n;
 mod model;
 mod navigation;
 mod preview;
-mod text_encoding;
 mod tree;
 
 pub use entry::FileEntry;
@@ -15,6 +14,8 @@ pub use fs::{
 pub use i18n::{detect_system_locale, ids, Language, LanguageBundle, Locale};
 pub use model::{ExplorerModel, ModelError, StatusInfo};
 pub use navigation::NavigationHistory;
-pub use preview::{load_preview, ImagePreview, PreviewFile, PreviewKind};
-pub use text_encoding::{TextEncoding, TextPreview};
+pub use preview::{
+    load_preview, ImagePreview, PdfPreview, PptPreview, PreviewFile, PreviewKind, TextEncoding,
+    TextPreview, WordPreview,
+};
 pub use tree::{load_tree_children, DirectoryTree, TreeNode, TreeRow};

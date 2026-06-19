@@ -252,6 +252,9 @@ impl App {
                                 "preview-too-large" => bundle.tr(ids::PREVIEW_TOO_LARGE),
                                 "preview-decode-failed" => bundle.tr(ids::PREVIEW_DECODE_FAILED),
                                 "preview-not-file" => bundle.tr(ids::PREVIEW_NOT_FILE),
+                                "preview-word-failed" => bundle.tr(ids::PREVIEW_WORD_FAILED),
+                                "preview-ppt-failed" => bundle.tr(ids::PREVIEW_PPT_FAILED),
+                                "preview-pdf-failed" => bundle.tr(ids::PREVIEW_PDF_FAILED),
                                 _ => bundle.tr(ids::PREVIEW_LOAD_FAILED),
                             });
                         }
@@ -284,6 +287,13 @@ impl App {
                 if let Some(state) = &mut self.preview {
                     if let Some(text) = &mut state.text {
                         text.handle_editor_action(action);
+                    }
+                }
+            }
+            preview::Message::DocumentEditor(action) => {
+                if let Some(state) = &mut self.preview {
+                    if let Some(document) = &mut state.document {
+                        document.handle_editor_action(action);
                     }
                 }
             }

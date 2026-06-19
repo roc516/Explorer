@@ -9,6 +9,7 @@ pub enum Message {
     OpenExternal,
     EncodingSelected(TextEncoding),
     TextEditor(text_editor::Action),
+    DocumentEditor(text_editor::Action),
     ImageZoomIn,
     ImageZoomOut,
     ImageZoomReset,

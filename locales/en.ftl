@@ -42,6 +42,14 @@ preview-encoding-utf16le = UTF-16 LE
 preview-encoding-utf16be = UTF-16 BE
 preview-encoding-latin1 = Latin-1
 preview-decode-failed = Failed to decode file with selected encoding
+preview-word-failed = Failed to read Word document
+preview-word-document = Word document
+preview-ppt-failed = Failed to read PowerPoint presentation
+preview-ppt-document = PowerPoint
+preview-ppt-slides = { $count } slides
+preview-pdf-failed = Failed to read PDF document
+preview-pdf-document = PDF
+preview-pdf-pages = { $count } pages
 preview-zoom-fit = Fit to window
 
 column-name = Name
