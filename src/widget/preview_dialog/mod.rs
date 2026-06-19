@@ -2,9 +2,7 @@ mod document;
 mod image;
 mod text;
 
-use std::path::PathBuf;
-
-use explorer_core::{ids, LanguageBundle, PreviewFile, PreviewKind};
+use explorer_core::{ids, BrowsePath, LanguageBundle, PreviewFile, PreviewKind};
 use fluent::{FluentArgs, FluentValue};
 use iced::widget::{
     button, column, container, mouse_area, rule, row, scrollable,
@@ -17,14 +15,14 @@ use lucide_icons::Icon;
 use crate::fluent::{
     DIALOG_WIDTH_PREVIEW, HEIGHT_PREVIEW_BODY, HEIGHT_PREVIEW_STATUS_BAR, SPACE_LG, SPACE_MD, SPACE_SM,
 };
-use crate::message::{preview, Message as AppMessage};
+use crate::message::preview;
 use crate::widget::lucide_icon;
 use crate::widget::style::{dialog_container, dialog_divider, error_text, icon_button, secondary_button};
 use crate::widget::wheel_blocker::WheelBlocker;
 
 #[derive(Debug, Clone)]
 pub struct PreviewState {
-    pub path: std::path::PathBuf,
+    pub path: BrowsePath,
     pub name: String,
     pub loading: bool,
     pub file: Option<PreviewFile>,
@@ -35,7 +33,7 @@ pub struct PreviewState {
 }
 
 impl PreviewState {
-    pub fn opening(path: std::path::PathBuf, name: String) -> Self {
+    pub fn opening(path: BrowsePath, name: String) -> Self {
         Self {
             path,
             name,
@@ -57,7 +55,7 @@ impl PreviewState {
     }
 }
 
-pub fn load_preview_task(path: PathBuf) -> Task<preview::Message> {
+pub fn load_preview_task(path: BrowsePath) -> Task<preview::Message> {
     Task::perform(
         async move { explorer_core::load_preview(&path) },
         preview::Message::Loaded,
@@ -71,11 +69,11 @@ impl PreviewDialogWidget {
         Self
     }
 
-    pub fn view<'a>(&self, bundle: LanguageBundle, state: &'a PreviewState) -> Element<'a, AppMessage> {
+    pub fn view<'a>(&self, bundle: LanguageBundle, state: &'a PreviewState) -> Element<'a, preview::Message> {
         let open_label = bundle.tr(ids::PREVIEW_OPEN_EXTERNAL);
         let loading_label = bundle.tr(ids::PREVIEW_LOADING);
 
-        let body: Element<'a, AppMessage> = if state.loading {
+        let body: Element<'a, preview::Message> = if state.loading {
             container(text_widget(loading_label).size(14))
                 .width(Fill)
                 .height(Fill)
@@ -107,7 +105,7 @@ impl PreviewDialogWidget {
             HEIGHT_PREVIEW_BODY
         };
 
-        let mut dialog_sections: Vec<Element<'a, AppMessage>> = vec![
+        let mut dialog_sections: Vec<Element<'a, preview::Message>> = vec![
             dialog_header(state.name.clone(), open_label, !state.loading),
             rule::horizontal(1).style(dialog_divider).into(),
             container(body)
@@ -159,7 +157,7 @@ impl PreviewDialogWidget {
                     .width(DIALOG_WIDTH_PREVIEW)
                     .style(dialog_container),
             )
-            .on_press(AppMessage::Preview(preview::Message::PressInside)),
+            .on_press(preview::Message::PressInside),
         )
         .into()
     }
@@ -179,8 +177,8 @@ fn dialog_header(
     title: String,
     open_label: String,
     can_open_external: bool,
-) -> Element<'static, AppMessage> {
-    let open_button: Element<'static, AppMessage> = if can_open_external {
+) -> Element<'static, preview::Message> {
+    let open_button: Element<'static, preview::Message> = if can_open_external {
         button(
             container(text_widget(open_label).size(13).line_height(iced::Pixels(18.0)))
                 .height(Length::Fixed(CLOSE_BUTTON_SIZE))
@@ -188,7 +186,7 @@ fn dialog_header(
                 .align_x(alignment::Horizontal::Center)
                 .align_y(alignment::Vertical::Center),
         )
-        .on_press(AppMessage::Preview(preview::Message::OpenExternal))
+        .on_press(preview::Message::OpenExternal)
         .height(Length::Fixed(CLOSE_BUTTON_SIZE))
         .padding(0)
         .style(secondary_button)
@@ -202,13 +200,13 @@ fn dialog_header(
         Space::new().width(Fill),
         open_button,
         button(
-            container(lucide_icon::icon_muted::<AppMessage>(Icon::X, CLOSE_ICON_SIZE, 0.72))
+            container(lucide_icon::icon_muted::<preview::Message>(Icon::X, CLOSE_ICON_SIZE, 0.72))
                 .width(Length::Fixed(CLOSE_BUTTON_SIZE))
                 .height(Length::Fixed(CLOSE_BUTTON_SIZE))
                 .align_x(alignment::Horizontal::Center)
                 .align_y(alignment::Vertical::Center),
         )
-        .on_press(AppMessage::Preview(preview::Message::Close))
+        .on_press(preview::Message::Close)
         .width(Length::Fixed(CLOSE_BUTTON_SIZE))
         .height(Length::Fixed(CLOSE_BUTTON_SIZE))
         .padding(0)
@@ -226,7 +224,7 @@ fn body_for_file<'a>(
     bundle: LanguageBundle,
     file: &'a PreviewFile,
     state: &'a PreviewState,
-) -> Element<'a, AppMessage> {
+) -> Element<'a, preview::Message> {
     match &file.kind {
         PreviewKind::Text(_) => state
             .text
@@ -249,8 +247,8 @@ fn body_for_file<'a>(
 
 pub(super) fn read_only_editor<'a>(
     content: &'a text_editor::Content,
-    on_action: impl Fn(text_editor::Action) -> AppMessage + 'a,
-) -> Element<'a, AppMessage> {
+    on_action: impl Fn(text_editor::Action) -> preview::Message + 'a,
+) -> Element<'a, preview::Message> {
     scrollable(
         text_editor_widget(content)
             .on_action(on_action)
@@ -281,7 +279,7 @@ pub(super) fn document_editor_style(
     style
 }
 
-pub(super) fn preview_message(message: String, is_error: bool) -> Element<'static, AppMessage> {
+pub(super) fn preview_message(message: String, is_error: bool) -> Element<'static, preview::Message> {
     container(
         text_widget(message)
             .size(14)
@@ -306,7 +304,7 @@ pub(super) fn preview_message(message: String, is_error: bool) -> Element<'stati
 fn unsupported_message(
     bundle: LanguageBundle,
     extension: &Option<String>,
-) -> Element<'static, AppMessage> {
+) -> Element<'static, preview::Message> {
     let label = if let Some(ext) = extension {
         let mut args = FluentArgs::new();
         args.set("extension", FluentValue::from(ext.clone()));

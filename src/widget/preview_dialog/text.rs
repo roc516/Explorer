@@ -8,7 +8,7 @@ use iced::{alignment, Element, Fill, Length};
 use crate::fluent::{
     FONT_SIZE_CAPTION, HEIGHT_PREVIEW_STATUS_BAR, PAGE_PADDING_H, SPACE_MD, SPACE_XS,
 };
-use crate::message::{preview, Message as AppMessage};
+use crate::message::preview;
 use crate::widget::style::{error_text, pick_list_style};
 
 use super::{preview_message, preview_status_bar, read_only_editor, status_muted_text};
@@ -92,12 +92,12 @@ impl Default for Text {
     }
 }
 
-pub fn view<'a>(bundle: LanguageBundle, text: &'a Text) -> Element<'a, AppMessage> {
+pub fn view<'a>(bundle: LanguageBundle, text: &'a Text) -> Element<'a, preview::Message> {
     let Some(content) = text.editor.as_ref() else {
         return preview_message(bundle.tr(ids::PREVIEW_LOADING), false);
     };
 
-    read_only_editor(content, |action| AppMessage::Preview(preview::Message::TextEditor(action)))
+    read_only_editor(content, |action| preview::Message::TextEditor(action))
 }
 
 pub fn status_bar(
@@ -105,7 +105,7 @@ pub fn status_bar(
     text_state: &Text,
     text_preview: &TextPreview,
     file: &PreviewFile,
-) -> Element<'static, AppMessage> {
+) -> Element<'static, preview::Message> {
     let size_label = bundle.format_size(file.size);
 
     let encoding_error = text_state
@@ -137,7 +137,7 @@ pub fn status_bar(
     .into()
 }
 
-fn encoding_error_label(message: String) -> Element<'static, AppMessage> {
+fn encoding_error_label(message: String) -> Element<'static, preview::Message> {
     text(message)
         .size(FONT_SIZE_CAPTION)
         .style(error_text)
@@ -148,7 +148,7 @@ fn encoding_controls(
     bundle: LanguageBundle,
     selected: TextEncoding,
     text_preview: &TextPreview,
-) -> Element<'static, AppMessage> {
+) -> Element<'static, preview::Message> {
     let label = bundle.tr(ids::PREVIEW_ENCODING_LABEL);
     let options: Vec<EncodingOption> = TextEncoding::SELECTABLE
         .iter()
@@ -166,7 +166,7 @@ fn encoding_controls(
     let picker = pick_list(
         options,
         current,
-        |option| AppMessage::Preview(preview::Message::EncodingSelected(option.encoding)),
+        |option| preview::Message::EncodingSelected(option.encoding),
     )
     .text_size(FONT_SIZE_CAPTION)
     .padding([2, 8])
@@ -185,7 +185,7 @@ fn encoding_controls(
         None
     };
 
-    let mut items: Vec<Element<'static, AppMessage>> = vec![
+    let mut items: Vec<Element<'static, preview::Message>> = vec![
         text(label)
             .size(FONT_SIZE_CAPTION)
             .style(status_muted_text)

@@ -9,7 +9,7 @@ use crate::fluent::{
     DIALOG_WIDTH_PREVIEW, FONT_SIZE_CAPTION, HEIGHT_PREVIEW_BODY, HEIGHT_PREVIEW_STATUS_BAR,
     PAGE_PADDING_H, SPACE_LG, SPACE_MD, SPACE_SM, SPACE_XS,
 };
-use crate::message::{preview, Message as AppMessage};
+use crate::message::preview;
 use crate::widget::lucide_icon;
 use crate::widget::style::{icon_button, secondary_button};
 
@@ -81,7 +81,7 @@ impl Default for Image {
     }
 }
 
-pub fn view(preview: &ImagePreview, zoom: f32) -> Element<'static, AppMessage> {
+pub fn view(preview: &ImagePreview, zoom: f32) -> Element<'static, preview::Message> {
     let display_w = (preview.width as f32 * zoom).max(1.0);
     let display_h = (preview.height as f32 * zoom).max(1.0);
 
@@ -92,9 +92,7 @@ pub fn view(preview: &ImagePreview, zoom: f32) -> Element<'static, AppMessage> {
             .content_fit(ContentFit::Fill),
     )
     .on_scroll(|delta| {
-        AppMessage::Preview(preview::Message::ImageWheelZoom(
-            scroll_delta_to_zoom_factor(delta),
-        ))
+        preview::Message::ImageWheelZoom(scroll_delta_to_zoom_factor(delta))
     });
 
     let needs_scroll = display_w > viewport_width() || display_h > viewport_height();
@@ -127,7 +125,7 @@ pub fn status_bar(
     image_state: &Image,
     image: &ImagePreview,
     file: &PreviewFile,
-) -> Element<'static, AppMessage> {
+) -> Element<'static, preview::Message> {
     let zoom_label = format_zoom_percent(image_state.zoom, image_state.fit_zoom);
     let dimensions = format!("{} × {}", image.width, image.height);
     let size_label = bundle.format_size(file.size);
@@ -147,7 +145,7 @@ pub fn status_bar(
                     .align_x(alignment::Horizontal::Center)
                     .align_y(alignment::Vertical::Center),
             )
-            .on_press(AppMessage::Preview(preview::Message::ImageZoomReset))
+            .on_press(preview::Message::ImageZoomReset)
             .height(Length::Fixed(ZOOM_BUTTON_SIZE))
             .padding(0)
             .style(secondary_button),
@@ -210,15 +208,15 @@ fn scroll_delta_to_zoom_factor(delta: mouse::ScrollDelta) -> f32 {
     }
 }
 
-fn zoom_button(icon: Icon, message: preview::Message) -> Element<'static, AppMessage> {
+fn zoom_button(icon: Icon, message: preview::Message) -> Element<'static, preview::Message> {
     button(
-        container(lucide_icon::icon_muted::<AppMessage>(icon, ZOOM_ICON_SIZE, 0.72))
+        container(lucide_icon::icon_muted::<preview::Message>(icon, ZOOM_ICON_SIZE, 0.72))
             .width(Length::Fixed(ZOOM_BUTTON_SIZE))
             .height(Length::Fixed(ZOOM_BUTTON_SIZE))
             .align_x(alignment::Horizontal::Center)
             .align_y(alignment::Vertical::Center),
     )
-    .on_press(AppMessage::Preview(message))
+    .on_press(message)
     .width(Length::Fixed(ZOOM_BUTTON_SIZE))
     .height(Length::Fixed(ZOOM_BUTTON_SIZE))
     .padding(0)

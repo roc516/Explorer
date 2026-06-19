@@ -1,17 +1,19 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
-use crate::fs::{list_drives, read_directory};
+use crate::archive;
+use crate::browse_path::BrowsePath;
+use crate::fs::{list_drives};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TreeNode {
     pub name: String,
-    pub path: PathBuf,
+    pub path: BrowsePath,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TreeRow {
-    pub path: PathBuf,
+    pub path: BrowsePath,
     pub name: String,
     pub depth: usize,
     pub expanded: bool,
@@ -22,10 +24,10 @@ pub struct TreeRow {
 
 pub struct DirectoryTree {
     roots: Vec<TreeNode>,
-    expanded: BTreeSet<PathBuf>,
-    children: HashMap<PathBuf, Vec<TreeNode>>,
-    loading: BTreeSet<PathBuf>,
-    selected: Option<PathBuf>,
+    expanded: BTreeSet<BrowsePath>,
+    children: HashMap<BrowsePath, Vec<TreeNode>>,
+    loading: BTreeSet<BrowsePath>,
+    selected: Option<BrowsePath>,
 }
 
 impl DirectoryTree {
@@ -34,10 +36,26 @@ impl DirectoryTree {
             .into_iter()
             .map(|path| TreeNode {
                 name: path.display().to_string(),
-                path,
+                path: BrowsePath::local(path),
             })
             .collect();
 
+        Self::with_roots(roots)
+    }
+
+    pub fn for_archive(archive: PathBuf) -> Self {
+        let name = archive
+            .file_name()
+            .map(|value| value.to_string_lossy().into_owned())
+            .unwrap_or_else(|| archive.display().to_string());
+
+        Self::with_roots(vec![TreeNode {
+            name,
+            path: BrowsePath::archive_root(archive),
+        }])
+    }
+
+    fn with_roots(roots: Vec<TreeNode>) -> Self {
         Self {
             roots,
             expanded: BTreeSet::new(),
@@ -53,7 +71,7 @@ impl DirectoryTree {
         rows
     }
 
-    pub fn toggle(&mut self, path: PathBuf) -> Option<PathBuf> {
+    pub fn toggle(&mut self, path: BrowsePath) -> Option<BrowsePath> {
         if self.expanded.contains(&path) {
             self.expanded.remove(&path);
             return None;
@@ -68,11 +86,15 @@ impl DirectoryTree {
         }
     }
 
-    pub fn select(&mut self, path: PathBuf) {
+    pub fn select(&mut self, path: BrowsePath) {
         self.selected = Some(path);
     }
 
-    pub fn on_children_loaded(&mut self, path: PathBuf, result: Result<Vec<TreeNode>, String>) {
+    pub fn on_children_loaded(
+        &mut self,
+        path: BrowsePath,
+        result: Result<Vec<TreeNode>, String>,
+    ) {
         self.loading.remove(&path);
 
         match result {
@@ -85,8 +107,8 @@ impl DirectoryTree {
         }
     }
 
-    pub fn sync_selection(&mut self, current: &Path) -> Vec<PathBuf> {
-        self.selected = Some(current.to_path_buf());
+    pub fn sync_selection(&mut self, current: &BrowsePath) -> Vec<BrowsePath> {
+        self.selected = Some(current.clone());
 
         let mut pending = Vec::new();
         for path in ancestors_and_self(current) {
@@ -120,7 +142,7 @@ impl DirectoryTree {
         }
     }
 
-    fn is_expandable(&self, path: &Path) -> bool {
+    fn is_expandable(&self, path: &BrowsePath) -> bool {
         if self.loading.contains(path) || self.expanded.contains(path) {
             return true;
         }
@@ -132,8 +154,8 @@ impl DirectoryTree {
     }
 }
 
-pub fn load_tree_children(path: &Path) -> Result<Vec<TreeNode>, String> {
-    Ok(read_directory(path)?
+pub fn load_tree_children(path: &BrowsePath) -> Result<Vec<TreeNode>, String> {
+    Ok(archive::read_directory(path)?
         .into_iter()
         .filter(|entry| entry.is_dir)
         .map(|entry| TreeNode {
@@ -143,12 +165,12 @@ pub fn load_tree_children(path: &Path) -> Result<Vec<TreeNode>, String> {
         .collect())
 }
 
-fn ancestors_and_self(path: &Path) -> Vec<PathBuf> {
+fn ancestors_and_self(path: &BrowsePath) -> Vec<BrowsePath> {
     let mut chain = Vec::new();
-    let mut current = Some(path);
+    let mut current = Some(path.clone());
 
     while let Some(part) = current {
-        chain.push(part.to_path_buf());
+        chain.push(part.clone());
         current = part.parent();
     }
 

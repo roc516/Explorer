@@ -1,6 +1,5 @@
-use std::path::Path;
-
-use explorer_core::{ids, path_breadcrumbs, LanguageBundle};
+use explorer_core::{ids, path_breadcrumbs, BrowsePath, LanguageBundle};
+use iced::window as iced_window;
 use iced::widget::{button, container, mouse_area, row, scrollable, text, text_input};
 use iced::{alignment, Element, Fill, Theme};
 
@@ -8,8 +7,10 @@ use crate::fluent::{
     FONT_SIZE_ADDRESS, FONT_SIZE_BREADCRUMB_SEP, HEIGHT_COMMAND_BAR, PAGE_PADDING_H,
     RADIUS_CONTROL, SPACE_MD, SPACE_SM, SPACE_XS,
 };
-use crate::message::{settings, Message as AppMessage};
+use crate::message::{settings, window as window_msg, Message as AppMessage};
 use crate::widget::toolbar_icons::{self, NavIcon};
+
+pub const ADDRESS_INPUT_ID: iced::widget::Id = iced::widget::Id::new("toolbar-address-input");
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -20,7 +21,7 @@ pub enum Message {
     AddressEdited(String),
     AddressSubmit,
     AddressEditStart,
-    BreadcrumbNavigate(std::path::PathBuf),
+    BreadcrumbNavigate(BrowsePath),
 }
 
 pub struct ToolbarWidget;
@@ -33,12 +34,13 @@ impl ToolbarWidget {
     pub fn view(
         &self,
         bundle: LanguageBundle,
-        current_path: &Path,
+        current_path: &BrowsePath,
         address_input: &str,
         address_editing: bool,
         can_go_back: bool,
         can_go_forward: bool,
         can_go_up: bool,
+        window_id: iced_window::Id,
     ) -> Element<'_, AppMessage> {
         let address_placeholder = bundle.tr(ids::TOOLBAR_ADDRESS_PLACEHOLDER);
 
@@ -46,22 +48,34 @@ impl ToolbarWidget {
             toolbar_icons::nav_button(
                 NavIcon::Back,
                 can_go_back,
-                can_go_back.then_some(AppMessage::Explorer(Message::GoBack)),
+                can_go_back.then_some(AppMessage::Window(
+                    window_id,
+                    window_msg::Message::Explorer(Message::GoBack),
+                )),
             ),
             toolbar_icons::nav_button(
                 NavIcon::Forward,
                 can_go_forward,
-                can_go_forward.then_some(AppMessage::Explorer(Message::GoForward)),
+                can_go_forward.then_some(AppMessage::Window(
+                    window_id,
+                    window_msg::Message::Explorer(Message::GoForward),
+                )),
             ),
             toolbar_icons::nav_button(
                 NavIcon::Up,
                 can_go_up,
-                can_go_up.then_some(AppMessage::Explorer(Message::GoUp)),
+                can_go_up.then_some(AppMessage::Window(
+                    window_id,
+                    window_msg::Message::Explorer(Message::GoUp),
+                )),
             ),
             toolbar_icons::nav_button(
                 NavIcon::Refresh,
                 true,
-                Some(AppMessage::Explorer(Message::Refresh)),
+                Some(AppMessage::Window(
+                    window_id,
+                    window_msg::Message::Explorer(Message::Refresh),
+                )),
             ),
             toolbar_icons::nav_button(
                 NavIcon::Settings,
@@ -73,13 +87,22 @@ impl ToolbarWidget {
 
         let address_bar = container(if address_editing {
             text_input(&address_placeholder, address_input)
-                .on_input(|value| AppMessage::Explorer(Message::AddressEdited(value)))
-                .on_submit(AppMessage::Explorer(Message::AddressSubmit))
+                .id(ADDRESS_INPUT_ID)
+                .on_input(move |value| {
+                    AppMessage::Window(
+                        window_id,
+                        window_msg::Message::Explorer(Message::AddressEdited(value)),
+                    )
+                })
+                .on_submit(AppMessage::Window(
+                    window_id,
+                    window_msg::Message::Explorer(Message::AddressSubmit),
+                ))
                 .size(FONT_SIZE_ADDRESS)
                 .width(Fill)
                 .into()
         } else {
-            breadcrumb_bar(current_path)
+            breadcrumb_bar(current_path, window_id)
         })
         .padding([0.0, SPACE_MD])
         .width(Fill)
@@ -106,7 +129,7 @@ impl Default for ToolbarWidget {
     }
 }
 
-fn breadcrumb_bar(current_path: &Path) -> Element<'static, AppMessage> {
+fn breadcrumb_bar(current_path: &BrowsePath, window_id: iced_window::Id) -> Element<'static, AppMessage> {
     let crumbs = path_breadcrumbs(current_path);
     let last_index = crumbs.len().saturating_sub(1);
     let mut items: Vec<Element<'static, AppMessage>> = Vec::new();
@@ -125,6 +148,7 @@ fn breadcrumb_bar(current_path: &Path) -> Element<'static, AppMessage> {
             crumb.label,
             crumb.path,
             index == last_index,
+            window_id,
         ));
     }
 
@@ -143,21 +167,28 @@ fn breadcrumb_bar(current_path: &Path) -> Element<'static, AppMessage> {
         .width(Fill)
         .align_y(alignment::Vertical::Center),
     )
-    .on_double_click(AppMessage::Explorer(Message::AddressEditStart))
+    .on_double_click(AppMessage::Window(
+        window_id,
+        window_msg::Message::Explorer(Message::AddressEditStart),
+    ))
     .into()
 }
 
 fn breadcrumb_button(
     label: String,
-    path: std::path::PathBuf,
+    path: BrowsePath,
     is_last: bool,
+    window_id: iced_window::Id,
 ) -> Element<'static, AppMessage> {
     button(text(label).size(FONT_SIZE_ADDRESS).style(if is_last {
         breadcrumb_current_text
     } else {
         breadcrumb_link_text
     }))
-    .on_press(AppMessage::Explorer(Message::BreadcrumbNavigate(path)))
+    .on_press(AppMessage::Window(
+        window_id,
+        window_msg::Message::Explorer(Message::BreadcrumbNavigate(path)),
+    ))
     .padding([2.0, SPACE_SM])
     .style(breadcrumb_button_style)
     .into()

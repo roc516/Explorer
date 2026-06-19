@@ -1,6 +1,6 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use explorer_core::{load_tree_children, DirectoryTree, TreeNode, TreeRow};
+use explorer_core::{load_tree_children, BrowsePath, DirectoryTree, TreeNode, TreeRow};
 use iced::widget::{button, column, container, mouse_area, row, scrollable, text, Space};
 use iced::{alignment, Element, Fill, Length, Task, Theme};
 
@@ -12,9 +12,9 @@ use crate::widget::tree_icons;
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Toggle(PathBuf),
-    Select(PathBuf),
-    ChildrenLoaded(PathBuf, Result<Vec<TreeNode>, String>),
+    Toggle(BrowsePath),
+    Select(BrowsePath),
+    ChildrenLoaded(BrowsePath, Result<Vec<TreeNode>, String>),
 }
 
 const INDENT: f32 = 16.0;
@@ -23,7 +23,7 @@ const ICON_WIDTH: f32 = 18.0;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
-    Navigate(PathBuf),
+    Navigate(BrowsePath),
 }
 
 pub struct DirectoryTreeWidget {
@@ -33,8 +33,16 @@ pub struct DirectoryTreeWidget {
 
 impl DirectoryTreeWidget {
     pub fn new() -> Self {
+        Self::with_tree(DirectoryTree::new())
+    }
+
+    pub fn for_archive(archive: PathBuf) -> Self {
+        Self::with_tree(DirectoryTree::for_archive(archive))
+    }
+
+    fn with_tree(state: DirectoryTree) -> Self {
         Self {
-            state: DirectoryTree::new(),
+            state,
             width: Length::Fixed(NAV_PANE_WIDTH),
         }
     }
@@ -60,7 +68,7 @@ impl DirectoryTreeWidget {
         }
     }
 
-    pub fn sync_path(&mut self, path: &Path) -> Task<Message> {
+    pub fn sync_path(&mut self, path: &BrowsePath) -> Task<Message> {
         let pending = self.state.sync_selection(path);
         Task::batch(pending.into_iter().map(load_children_task))
     }
@@ -94,7 +102,7 @@ impl Default for DirectoryTreeWidget {
     }
 }
 
-fn load_children_task(path: PathBuf) -> Task<Message> {
+fn load_children_task(path: BrowsePath) -> Task<Message> {
     Task::perform(
         {
             let load_path = path.clone();

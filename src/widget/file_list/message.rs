@@ -1,6 +1,4 @@
-use std::path::PathBuf;
-
-use explorer_core::FileEntry;
+use explorer_core::{BrowsePath, FileEntry};
 
 use super::columns::Column;
 
@@ -8,7 +6,7 @@ use super::columns::Column;
 pub enum Message {
     EntryClicked(usize),
     EntryDoubleClicked(usize),
-    DirectoryLoaded(Result<(PathBuf, Vec<FileEntry>), String>),
+    DirectoryLoaded(Result<(BrowsePath, Vec<FileEntry>), String>),
     ColumnResizeStarted(Column),
     ColumnResizeMoved(f32),
     ColumnResizeEnded,
@@ -17,6 +15,7 @@ pub enum Message {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
-    DirectoryChanged(std::path::PathBuf),
-    PreviewFile(std::path::PathBuf),
+    DirectoryChanged(BrowsePath),
+    PreviewFile(BrowsePath),
+    OpenArchive(std::path::PathBuf),
 }

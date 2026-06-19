@@ -1,7 +1,8 @@
-use std::fs;
-use std::path::Path;
+use std::io::Read;
 
 use encoding_rs::{GBK, UTF_16BE, UTF_16LE, WINDOWS_1252};
+
+use super::io;
 
 const MAX_BYTES: u64 = 512 * 1024;
 
@@ -56,15 +57,6 @@ pub struct TextPreview {
 }
 
 impl TextPreview {
-    pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, String> {
-        let (content, resolved_encoding) = TextEncoding::Auto.decode(&bytes)?;
-        Ok(Self {
-            raw: bytes,
-            content,
-            resolved_encoding,
-        })
-    }
-
     pub fn redecode(&mut self, encoding: TextEncoding) -> Result<(), String> {
         let (content, resolved_encoding) = encoding.decode(&self.raw)?;
         self.content = content;
@@ -120,16 +112,17 @@ pub fn is_extension(ext: &str) -> bool {
     )
 }
 
-pub fn load_from_path(path: &Path, size: u64) -> Result<TextPreview, String> {
-    if size > MAX_BYTES {
-        return Err("preview-too-large".to_string());
-    }
-
-    let bytes = fs::read(path).map_err(|err| err.to_string())?;
-    TextPreview::from_bytes(bytes)
+pub fn load(reader: &mut dyn Read, size: u64) -> Result<TextPreview, String> {
+    let bytes = io::copy_limited(reader, MAX_BYTES, Some(size))?;
+    let (content, resolved_encoding) = TextEncoding::Auto.decode(&bytes)?;
+    Ok(TextPreview {
+        raw: bytes,
+        content,
+        resolved_encoding,
+    })
 }
 
-pub fn detect_encoding(bytes: &[u8]) -> TextEncoding {
+fn detect_encoding(bytes: &[u8]) -> TextEncoding {
     if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
         return TextEncoding::Utf8;
     }

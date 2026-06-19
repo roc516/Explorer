@@ -7,7 +7,7 @@ use iced::{alignment, Element, Fill, Length};
 use crate::fluent::{
     FONT_SIZE_CAPTION, HEIGHT_PREVIEW_STATUS_BAR, PAGE_PADDING_H, SPACE_MD, SPACE_XS,
 };
-use crate::message::{preview, Message as AppMessage};
+use crate::message::preview;
 
 use super::{preview_message, preview_status_bar, read_only_editor, status_muted_text};
 
@@ -42,15 +42,15 @@ impl Document {
     }
 }
 
-pub fn view<'a>(bundle: LanguageBundle, document: &'a Document) -> Element<'a, AppMessage> {
+pub fn view<'a>(bundle: LanguageBundle, document: &'a Document) -> Element<'a, preview::Message> {
     let Some(content) = document.editor.as_ref() else {
         return preview_message(bundle.tr(ids::PREVIEW_LOADING), false);
     };
 
-    read_only_editor(content, |action| AppMessage::Preview(preview::Message::DocumentEditor(action)))
+    read_only_editor(content, |action| preview::Message::DocumentEditor(action))
 }
 
-pub fn status_bar(bundle: LanguageBundle, file: &PreviewFile) -> Element<'static, AppMessage> {
+pub fn status_bar(bundle: LanguageBundle, file: &PreviewFile) -> Element<'static, preview::Message> {
     let kind_label = match &file.kind {
         PreviewKind::Word(_) => bundle.tr(ids::PREVIEW_WORD_DOCUMENT),
         PreviewKind::Ppt(_) => bundle.tr(ids::PREVIEW_PPT_DOCUMENT),
@@ -72,7 +72,7 @@ pub fn status_bar(bundle: LanguageBundle, file: &PreviewFile) -> Element<'static
         _ => None,
     };
 
-    let mut items: Vec<Element<'static, AppMessage>> = vec![
+    let mut items: Vec<Element<'static, preview::Message>> = vec![
         text(kind_label)
             .size(FONT_SIZE_CAPTION)
             .style(status_muted_text)

@@ -1,12 +1,13 @@
 use std::path::PathBuf;
 use std::time::SystemTime;
 
+use crate::browse_path::BrowsePath;
 use crate::i18n::{ids, LanguageBundle};
 
 #[derive(Debug, Clone)]
 pub struct FileEntry {
     pub name: String,
-    pub path: PathBuf,
+    pub path: BrowsePath,
     pub is_dir: bool,
     pub size: u64,
     pub modified: Option<SystemTime>,
@@ -18,9 +19,13 @@ impl FileEntry {
             return bundle.tr(ids::ENTRY_FOLDER);
         }
 
-        self.path
-            .extension()
-            .and_then(|ext| ext.to_str())
+        let extension = self
+            .path
+            .local_file()
+            .and_then(|path| path.extension())
+            .or_else(|| std::path::Path::new(&self.name).extension())
+            .and_then(|ext| ext.to_str());
+        extension
             .map(|ext| bundle.format_file_type(ext))
             .unwrap_or_else(|| bundle.tr(ids::ENTRY_FILE))
     }

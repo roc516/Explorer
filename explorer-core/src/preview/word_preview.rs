@@ -1,6 +1,8 @@
-use std::path::Path;
+use std::io::{Cursor, Read};
 
-use office_oxide::Document;
+use office_oxide::{Document, DocumentFormat};
+
+use super::io;
 
 const MAX_BYTES: u64 = 32 * 1024 * 1024;
 
@@ -9,23 +11,21 @@ pub struct WordPreview {
     pub content: String,
 }
 
-impl WordPreview {
-    pub fn from_path(path: &Path) -> Result<Self, String> {
-        let document = Document::open(path).map_err(|_| "preview-word-failed".to_string())?;
-        Ok(Self {
-            content: document.plain_text(),
-        })
-    }
-}
-
 pub fn is_extension(ext: &str) -> bool {
     matches!(ext, "doc" | "docx")
 }
 
-pub fn load_from_path(path: &Path, size: u64) -> Result<WordPreview, String> {
-    if size > MAX_BYTES {
-        return Err("preview-too-large".to_string());
-    }
+pub fn load(reader: &mut dyn Read, size: u64, extension: &str) -> Result<WordPreview, String> {
+    let format = DocumentFormat::from_extension(extension)
+        .filter(|format| matches!(format, DocumentFormat::Doc | DocumentFormat::Docx))
+        .ok_or_else(|| "preview-word-failed".to_string())?;
+    let document = Document::from_reader(
+        Cursor::new(io::copy_limited(reader, MAX_BYTES, Some(size))?),
+        format,
+    )
+    .map_err(|_| "preview-word-failed".to_string())?;
 
-    WordPreview::from_path(path)
+    Ok(WordPreview {
+        content: document.plain_text(),
+    })
 }

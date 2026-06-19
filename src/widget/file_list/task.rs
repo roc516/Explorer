@@ -1,13 +1,11 @@
-use std::path::PathBuf;
-
+use explorer_core::BrowsePath;
 use iced::Task;
 
 use super::message::Message;
 
-pub fn load_directory_task(path: PathBuf) -> Task<Message> {
-    use explorer_core::read_directory;
+pub fn load_directory_task(path: BrowsePath) -> Task<Message> {
     Task::perform(
-        async move { read_directory(&path).map(|entries| (path, entries)) },
+        async move { explorer_core::read_directory(&path).map(|entries| (path, entries)) },
         Message::DirectoryLoaded,
     )
 }

@@ -1,9 +1,18 @@
-use explorer_core::{detect_system_locale, ids, open_with_system, ExplorerModel, Language, LanguageBundle, Locale};
-use iced::theme::Mode;
-use iced::widget::{column, row, rule, stack};
-use iced::{keyboard, system, Element, Fill, Subscription, Task, Theme};
+use std::collections::BTreeMap;
+use std::path::PathBuf;
 
-use crate::message::{input, preview, settings, theme, Message};
+use explorer_core::{
+    detect_system_locale, extract_entry_to_temp, ids, open_with_system, BrowsePath, ExplorerModel,
+    Language, LanguageBundle, Locale,
+};
+use iced::keyboard;
+use iced::theme::Mode;
+use iced::widget::operation::{focus, select_all};
+use iced::widget::{column, row, rule, stack};
+use iced::window;
+use iced::{Element, Fill, Subscription, Task, Theme};
+
+use crate::message::{input, preview, settings, theme, window as window_msg, Message, Launch};
 use crate::theme::AppTheme;
 use crate::widget::directory_tree::{self, Action as TreeAction, DirectoryTreeWidget};
 use crate::widget::file_list::{self, Action as FileListAction, FileListWidget};
@@ -13,104 +22,106 @@ use crate::widget::settings_dialog::{self, SettingsDialogWidget};
 use crate::widget::status_bar::StatusBarWidget;
 use crate::widget::toolbar::{self, ToolbarWidget};
 
+const WINDOW_WIDTH: f32 = 1200.0;
+const WINDOW_HEIGHT: f32 = 760.0;
+
 pub struct App {
-    pub model: ExplorerModel,
-    pub toolbar: ToolbarWidget,
-    pub directory_tree: DirectoryTreeWidget,
-    pub file_list: FileListWidget,
-    pub status_bar: StatusBarWidget,
-    pub settings_dialog: SettingsDialogWidget,
-    pub preview_dialog: PreviewDialogWidget,
-    pub preview: Option<PreviewState>,
-    pub theme_choice: AppTheme,
-    pub system_mode: Mode,
-    pub language: Language,
-    pub system_locale: Locale,
-    pub settings_open: bool,
+    windows: BTreeMap<window::Id, ExplorerWindow>,
+    focused_window: Option<window::Id>,
+    settings_dialog: SettingsDialogWidget,
+    settings_open: bool,
+    theme_choice: AppTheme,
+    system_mode: Mode,
+    language: Language,
+    system_locale: Locale,
+}
+
+struct ExplorerWindow {
+    model: ExplorerModel,
+    toolbar: ToolbarWidget,
+    directory_tree: DirectoryTreeWidget,
+    file_list: FileListWidget,
+    status_bar: StatusBarWidget,
+    preview_dialog: PreviewDialogWidget,
+    preview: Option<PreviewState>,
 }
 
 impl App {
-    pub fn new() -> (Self, Task<Message>) {
+    pub fn boot() -> (Self, Task<Message>) {
         let system_locale = detect_system_locale();
         let language = Language::default();
-        let mut model = ExplorerModel::new();
-        model.set_locale(language.resolve(system_locale));
-        let initial_path = model.current_path.clone();
+        let (_, open) = window::open(window_settings());
 
         (
             Self {
-                model,
-                toolbar: ToolbarWidget::new(),
-                directory_tree: DirectoryTreeWidget::new(),
-                file_list: FileListWidget::new(),
-                status_bar: StatusBarWidget::new(),
+                windows: BTreeMap::new(),
+                focused_window: None,
                 settings_dialog: SettingsDialogWidget::new(),
-                preview_dialog: PreviewDialogWidget::new(),
-                preview: None,
+                settings_open: false,
                 theme_choice: AppTheme::System,
                 system_mode: Mode::default(),
                 language,
                 system_locale,
-                settings_open: false,
             },
-            Task::batch([
-                file_list::load_directory_task(initial_path).map(Message::FileList),
-                system::theme().map(|mode| Message::Theme(theme::Message::SystemChanged(mode))),
-            ]),
+            open.map(|id| Message::WindowOpened(id, Launch::Local)),
         )
-    }
-
-    pub fn effective_locale(&self) -> Locale {
-        self.language.resolve(self.system_locale)
-    }
-
-    pub fn bundle(&self) -> LanguageBundle {
-        self.model.bundle
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Explorer(message) => self.update_explorer(message),
-            Message::FileList(message) => self.update_file_list(message),
-            Message::Tree(message) => self.update_tree(message),
+            Message::Window(id, message) => self.update_window(id, message),
+            Message::WindowOpened(id, launch) => self.on_window_opened(id, launch),
+            Message::WindowClosed(id) => self.on_window_closed(id),
+            Message::WindowFocused(id) => {
+                self.focused_window = Some(id);
+                Task::none()
+            }
             Message::Theme(message) => self.update_theme(message),
             Message::Locale(message) => self.update_locale(message),
             Message::Settings(message) => self.update_settings(message),
-            Message::Preview(message) => self.update_preview(message),
-            Message::Input(message) => self.update_input(message),
         }
     }
 
-    pub fn view(&self) -> Element<'_, Message> {
-        let bundle = self.bundle();
+    pub fn view(&self, window_id: window::Id) -> Element<'_, Message> {
+        let Some(window) = self.windows.get(&window_id) else {
+            return iced::widget::Space::new().into();
+        };
 
+        let bundle = window.model.bundle.clone();
         let main = column![
-            self.toolbar.view(
+            window.toolbar.view(
                 bundle,
-                &self.model.current_path,
-                &self.model.address_input,
-                self.model.address_editing,
-                self.model.can_go_back(),
-                self.model.can_go_forward(),
-                self.model.can_go_up(),
+                &window.model.current_path,
+                &window.model.address_input,
+                window.model.address_editing,
+                window.model.can_go_back(),
+                window.model.can_go_forward(),
+                window.model.can_go_up(),
+                window_id,
             ),
             rule::horizontal(1),
             row![
-                self.directory_tree.view(bundle).map(Message::Tree),
+                window
+                    .directory_tree
+                    .view(bundle)
+                    .map(move |message| Message::Window(window_id, window_msg::Message::Tree(message))),
                 rule::vertical(1),
-                self.file_list.view(&self.model).map(Message::FileList),
+                window
+                    .file_list
+                    .view(&window.model)
+                    .map(move |message| Message::Window(window_id, window_msg::Message::FileList(message))),
             ]
             .spacing(0)
             .width(Fill)
             .height(Fill),
             rule::horizontal(1),
-            self.status_bar.view(&self.model),
+            window.status_bar.view(&window.model),
         ]
         .width(Fill)
         .height(Fill)
         .into();
 
-        if !self.settings_open && self.preview.is_none() {
+        if !self.settings_open && window.preview.is_none() {
             return main;
         }
 
@@ -124,44 +135,211 @@ impl App {
             ));
         }
 
-        if let Some(preview) = &self.preview {
+        if let Some(preview) = &window.preview {
             layers.push(modal_overlay::overlay(
-                self.preview_dialog.view(bundle, preview),
-                Message::Preview(preview::Message::Close),
+                window
+                    .preview_dialog
+                    .view(bundle, preview)
+                    .map(move |message| Message::Window(window_id, window_msg::Message::Preview(message))),
+                Message::Window(window_id, window_msg::Message::Preview(preview::Message::Close)),
             ));
         }
 
         stack(layers).width(Fill).height(Fill).into()
     }
 
-    pub fn subscription(state: &Self) -> Subscription<Message> {
-        Subscription::batch([
-            keyboard::listen().filter_map(|event| {
-                if let keyboard::Event::KeyPressed { key, modifiers, .. } = event {
-                    Some(Message::Input(input::Message::KeyPressed(key, modifiers)))
-                } else {
-                    None
-                }
+    pub fn subscription(&self) -> Subscription<Message> {
+        let mut subscriptions = vec![
+            window::close_events().map(Message::WindowClosed),
+            window::events().filter_map(|(id, event)| {
+                (event == window::Event::Focused).then_some(Message::WindowFocused(id))
             }),
-            system::theme_changes()
+            iced::system::theme_changes()
                 .map(|mode| Message::Theme(theme::Message::SystemChanged(mode))),
-            state.file_list.subscription().map(Message::FileList),
-        ])
+        ];
+
+        subscriptions.push(
+            keyboard::listen()
+                .with(self.focused_window)
+                .filter_map(|(focused, event)| {
+                    let id = focused?;
+                    if let keyboard::Event::KeyPressed { key, modifiers, .. } = event {
+                        Some(Message::Window(
+                            id,
+                            window_msg::Message::Input(input::Message::KeyPressed(key, modifiers)),
+                        ))
+                    } else {
+                        None
+                    }
+                }),
+        );
+
+        let file_list_subscriptions: Vec<_> = self
+            .windows
+            .iter()
+            .map(|(id, window)| {
+                (
+                    *id,
+                    window.file_list.subscription(),
+                )
+            })
+            .collect();
+
+        for (id, subscription) in file_list_subscriptions {
+            subscriptions.push(
+                subscription
+                    .with(id)
+                    .map(|(id, message)| Message::Window(id, window_msg::Message::FileList(message))),
+            );
+        }
+
+        Subscription::batch(subscriptions)
     }
 
-    pub fn theme(state: &Self) -> Theme {
-        state.theme_choice.resolve(state.system_mode)
+    pub fn theme(&self, _window: window::Id) -> Option<Theme> {
+        Some(self.theme_choice.resolve(self.system_mode))
     }
 
-    pub fn title(&self) -> String {
-        self.model.bundle.tr(ids::WINDOW_TITLE)
+    pub fn title(&self, window_id: window::Id) -> String {
+        self.windows
+            .get(&window_id)
+            .map(|window| {
+                let title = window.model.bundle.tr(ids::WINDOW_TITLE);
+                format!("{title} — {}", window.model.current_path.display())
+            })
+            .unwrap_or_else(|| "Explorer".to_string())
     }
 
-    fn load_directory(&self, path: std::path::PathBuf) -> Task<Message> {
-        file_list::load_directory_task(path).map(Message::FileList)
+    fn on_window_opened(&mut self, id: window::Id, launch: Launch) -> Task<Message> {
+        let locale = self.language.resolve(self.system_locale);
+        let explorer = match launch {
+            Launch::Local => ExplorerWindow::new_local(locale),
+            Launch::Archive(path) => ExplorerWindow::new_archive(path, locale),
+        };
+
+        let load_path = explorer.model.current_path.clone();
+        self.focused_window = Some(id);
+        self.windows.insert(id, explorer);
+
+        file_list::load_directory_task(load_path)
+            .map(move |message| Message::Window(id, window_msg::Message::FileList(message)))
     }
 
-    fn update_explorer(&mut self, message: toolbar::Message) -> Task<Message> {
+    fn on_window_closed(&mut self, id: window::Id) -> Task<Message> {
+        self.windows.remove(&id);
+        if self.focused_window == Some(id) {
+            self.focused_window = self.windows.keys().next().copied();
+        }
+
+        if self.windows.is_empty() {
+            iced::exit()
+        } else {
+            Task::none()
+        }
+    }
+
+    fn open_archive_window(&self, archive: PathBuf) -> Task<Message> {
+        let (_, open) = window::open(window_settings());
+        open.map(move |id| Message::WindowOpened(id, Launch::Archive(archive.clone())))
+    }
+
+    fn update_window(&mut self, id: window::Id, message: window_msg::Message) -> Task<Message> {
+        let Some(window) = self.windows.get_mut(&id) else {
+            return Task::none();
+        };
+
+        let task = match message {
+            window_msg::Message::Explorer(message) => window.update_explorer(message),
+            window_msg::Message::FileList(message) => {
+                let (task, open_archive) = window.update_file_list(message);
+                if let Some(archive) = open_archive {
+                    return Task::batch([
+                        task.map(move |message| Message::Window(id, message)),
+                        self.open_archive_window(archive),
+                    ]);
+                }
+                task
+            }
+            window_msg::Message::Tree(message) => window.update_tree(message),
+            window_msg::Message::Preview(message) => window.update_preview(message),
+            window_msg::Message::Input(message) => {
+                window.update_input(message, self.settings_open)
+            }
+        };
+
+        task.map(move |message| Message::Window(id, message))
+    }
+
+    fn update_theme(&mut self, message: theme::Message) -> Task<Message> {
+        match message {
+            theme::Message::Selected(choice) => {
+                self.theme_choice = choice;
+            }
+            theme::Message::SystemChanged(mode) => {
+                self.system_mode = mode;
+            }
+        }
+        Task::none()
+    }
+
+    fn update_settings(&mut self, message: settings::Message) -> Task<Message> {
+        match message {
+            settings::Message::Toggle => {
+                self.settings_open = !self.settings_open;
+            }
+            settings::Message::Close => {
+                self.settings_open = false;
+            }
+            settings::Message::PressInside => {}
+        }
+        Task::none()
+    }
+
+    fn update_locale(&mut self, message: settings_dialog::locale::Message) -> Task<Message> {
+        let settings_dialog::locale::Message::Selected(language) = message;
+        self.language = language;
+        let locale = self.language.resolve(self.system_locale);
+        for window in self.windows.values_mut() {
+            window.model.set_locale(locale);
+        }
+        Task::none()
+    }
+}
+
+impl ExplorerWindow {
+    fn new_local(locale: Locale) -> Self {
+        let mut model = ExplorerModel::new_local();
+        model.set_locale(locale);
+        Self {
+            model,
+            toolbar: ToolbarWidget::new(),
+            directory_tree: DirectoryTreeWidget::new(),
+            file_list: FileListWidget::new(),
+            status_bar: StatusBarWidget::new(),
+            preview_dialog: PreviewDialogWidget::new(),
+            preview: None,
+        }
+    }
+
+    fn new_archive(archive: PathBuf, locale: Locale) -> Self {
+        let mut model = ExplorerModel::new_archive(archive.clone());
+        model.set_locale(locale);
+        Self {
+            model,
+            toolbar: ToolbarWidget::new(),
+            directory_tree: DirectoryTreeWidget::for_archive(archive),
+            file_list: FileListWidget::new(),
+            status_bar: StatusBarWidget::new(),
+            preview_dialog: PreviewDialogWidget::new(),
+            preview: None,
+        }
+    }
+
+    fn load_directory(&self, path: BrowsePath) -> Task<window_msg::Message> {
+        file_list::load_directory_task(path).map(window_msg::Message::FileList)
+    }
+
+    fn update_explorer(&mut self, message: toolbar::Message) -> Task<window_msg::Message> {
         match message {
             toolbar::Message::GoUp => self
                 .model
@@ -189,7 +367,8 @@ impl App {
             }
             toolbar::Message::AddressEditStart => {
                 self.model.start_address_edit();
-                Task::none()
+                focus::<window_msg::Message>(toolbar::ADDRESS_INPUT_ID)
+                    .chain(select_all(toolbar::ADDRESS_INPUT_ID))
             }
             toolbar::Message::BreadcrumbNavigate(path) => {
                 self.model.address_editing = false;
@@ -206,47 +385,48 @@ impl App {
         }
     }
 
-    fn update_file_list(&mut self, message: file_list::Message) -> Task<Message> {
+    fn update_file_list(
+        &mut self,
+        message: file_list::Message,
+    ) -> (Task<window_msg::Message>, Option<PathBuf>) {
         let (task, action) = self.file_list.update(&mut self.model, message);
-        let mut tasks = vec![task.map(Message::FileList)];
+        let mut tasks = vec![task.map(window_msg::Message::FileList)];
 
         if let Some(action) = action {
             match action {
                 FileListAction::DirectoryChanged(path) => {
-                    tasks.push(self.directory_tree.sync_path(&path).map(Message::Tree));
+                    tasks.push(self.directory_tree.sync_path(&path).map(window_msg::Message::Tree));
                 }
                 FileListAction::PreviewFile(path) => {
-                    tasks.push(self.open_preview(path));
+                    tasks.push(self.open_preview(path).map(window_msg::Message::Preview));
+                }
+                FileListAction::OpenArchive(path) => {
+                    return (Task::none(), Some(path));
                 }
             }
         }
 
-        Task::batch(tasks)
+        (Task::batch(tasks), None)
     }
 
-    fn open_preview(&mut self, path: std::path::PathBuf) -> Task<Message> {
-        let name = path
-            .file_name()
-            .map(|value| value.to_string_lossy().into_owned())
-            .unwrap_or_default();
+    fn open_preview(&mut self, path: BrowsePath) -> Task<preview::Message> {
+        let name = path.file_name();
         self.preview = Some(PreviewState::opening(path.clone(), name));
-        preview_dialog::load_preview_task(path).map(Message::Preview)
+        preview_dialog::load_preview_task(path)
     }
 
-    fn update_preview(&mut self, message: preview::Message) -> Task<Message> {
+    fn update_preview(&mut self, message: preview::Message) -> Task<window_msg::Message> {
         match message {
             preview::Message::Close => {
                 self.preview = None;
             }
             preview::Message::PressInside => {}
             preview::Message::Loaded(result) => {
-                let bundle = self.bundle();
+                let bundle = self.model.bundle.clone();
                 if let Some(state) = &mut self.preview {
                     state.loading = false;
                     match result {
-                        Ok(file) => {
-                            state.set_loaded_file(file);
-                        }
+                        Ok(file) => state.set_loaded_file(file),
                         Err(code) => {
                             state.error = Some(match code.as_str() {
                                 "preview-too-large" => bundle.tr(ids::PREVIEW_TOO_LARGE),
@@ -262,16 +442,22 @@ impl App {
                 }
             }
             preview::Message::OpenExternal => {
-                if let Some(path) = self.preview.as_ref().map(|state| state.path.clone()) {
-                    if let Err(message) = open_with_system(&path) {
-                        if let Some(state) = &mut self.preview {
-                            state.error = Some(message);
+                if let Some(source) = self.preview.as_ref().map(|state| state.path.clone()) {
+                    let open_path = match source {
+                        BrowsePath::Local(path) => Some(path),
+                        BrowsePath::Archive { .. } => extract_entry_to_temp(&source).ok(),
+                    };
+                    if let Some(path) = open_path {
+                        if let Err(message) = open_with_system(&path) {
+                            if let Some(state) = &mut self.preview {
+                                state.error = Some(message);
+                            }
                         }
                     }
                 }
             }
             preview::Message::EncodingSelected(encoding) => {
-                let bundle = self.bundle();
+                let bundle = self.model.bundle.clone();
                 if let Some(state) = &mut self.preview {
                     if let (Some(text), Some(file)) = (&mut state.text, &mut state.file) {
                         text.select_encoding(
@@ -329,9 +515,9 @@ impl App {
         Task::none()
     }
 
-    fn update_tree(&mut self, message: directory_tree::Message) -> Task<Message> {
+    fn update_tree(&mut self, message: directory_tree::Message) -> Task<window_msg::Message> {
         let (task, action) = self.directory_tree.update(message);
-        let mut tasks = vec![task.map(Message::Tree)];
+        let mut tasks = vec![task.map(window_msg::Message::Tree)];
 
         if let Some(TreeAction::Navigate(path)) = action {
             if let Some(load_path) = self.model.navigate(path) {
@@ -342,39 +528,11 @@ impl App {
         Task::batch(tasks)
     }
 
-    fn update_theme(&mut self, message: theme::Message) -> Task<Message> {
-        match message {
-            theme::Message::Selected(choice) => {
-                self.theme_choice = choice;
-            }
-            theme::Message::SystemChanged(mode) => {
-                self.system_mode = mode;
-            }
-        }
-        Task::none()
-    }
-
-    fn update_settings(&mut self, message: settings::Message) -> Task<Message> {
-        match message {
-            settings::Message::Toggle => {
-                self.settings_open = !self.settings_open;
-            }
-            settings::Message::Close => {
-                self.settings_open = false;
-            }
-            settings::Message::PressInside => {}
-        }
-        Task::none()
-    }
-
-    fn update_locale(&mut self, message: settings_dialog::locale::Message) -> Task<Message> {
-        let settings_dialog::locale::Message::Selected(language) = message;
-        self.language = language;
-        self.model.set_locale(self.effective_locale());
-        Task::none()
-    }
-
-    fn update_input(&mut self, message: input::Message) -> Task<Message> {
+    fn update_input(
+        &mut self,
+        message: input::Message,
+        settings_open: bool,
+    ) -> Task<window_msg::Message> {
         let input::Message::KeyPressed(key, modifiers) = message;
 
         if modifiers.control() {
@@ -385,17 +543,17 @@ impl App {
             keyboard::Key::Named(keyboard::key::Named::Escape) if self.preview.is_some() => {
                 self.update_preview(preview::Message::Close)
             }
-            keyboard::Key::Named(keyboard::key::Named::Escape) if self.settings_open => {
-                self.update_settings(settings::Message::Close)
-            }
+            keyboard::Key::Named(keyboard::key::Named::Escape) if settings_open => Task::none(),
             keyboard::Key::Named(keyboard::key::Named::Escape) if self.model.address_editing => {
                 self.model.cancel_address_edit();
                 Task::none()
             }
-            _ if self.preview.is_some() || self.settings_open => Task::none(),
+            _ if self.preview.is_some() || settings_open => Task::none(),
             keyboard::Key::Named(keyboard::key::Named::Enter) => {
                 if let Some(index) = self.model.selected_index {
-                    return self.update_file_list(file_list::Message::EntryDoubleClicked(index));
+                    let (task, _) =
+                        self.update_file_list(file_list::Message::EntryDoubleClicked(index));
+                    return task;
                 }
                 Task::none()
             }
@@ -413,5 +571,14 @@ impl App {
             }
             _ => Task::none(),
         }
+    }
+}
+
+fn window_settings() -> window::Settings {
+    window::Settings {
+        size: iced::Size::new(WINDOW_WIDTH, WINDOW_HEIGHT),
+        min_size: Some(iced::Size::new(800.0, 500.0)),
+        icon: Some(crate::window_icon::app_icon()),
+        ..Default::default()
     }
 }

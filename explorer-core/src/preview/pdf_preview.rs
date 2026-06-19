@@ -1,4 +1,6 @@
-use std::path::Path;
+use std::io::Read;
+
+use super::io;
 
 const MAX_BYTES: u64 = 32 * 1024 * 1024;
 
@@ -8,32 +10,21 @@ pub struct PdfPreview {
     pub page_count: usize,
 }
 
-impl PdfPreview {
-    pub fn from_path(path: &Path) -> Result<Self, String> {
-        let pages =
-            pdf_extract::extract_text_by_pages(path).map_err(|_| "preview-pdf-failed".to_string())?;
-        let page_count = pages.len();
-        let content = pages
-            .into_iter()
-            .filter(|page| !page.trim().is_empty())
-            .collect::<Vec<_>>()
-            .join("\n\n");
-
-        Ok(Self {
-            content,
-            page_count,
-        })
-    }
-}
-
 pub fn is_extension(ext: &str) -> bool {
     ext == "pdf"
 }
 
-pub fn load_from_path(path: &Path, size: u64) -> Result<PdfPreview, String> {
-    if size > MAX_BYTES {
-        return Err("preview-too-large".to_string());
-    }
+pub fn load(reader: &mut dyn Read, size: u64) -> Result<PdfPreview, String> {
+    let bytes = io::copy_limited(reader, MAX_BYTES, Some(size))?;
+    let pages = pdf_extract::extract_text_from_mem_by_pages(&bytes)
+        .map_err(|_| "preview-pdf-failed".to_string())?;
 
-    PdfPreview::from_path(path)
+    Ok(PdfPreview {
+        page_count: pages.len(),
+        content: pages
+            .into_iter()
+            .filter(|page| !page.trim().is_empty())
+            .collect::<Vec<_>>()
+            .join("\n\n"),
+    })
 }
