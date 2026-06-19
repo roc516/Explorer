@@ -5,7 +5,10 @@ use iced::widget::{button, column, container, mouse_area, pick_list, row, rule, 
 use iced::{alignment, Element, Fill, Length, Theme};
 use lucide_icons::Icon;
 
-use crate::fluent::{RADIUS_CONTROL, RADIUS_FLYOUT, SPACE_LG, SPACE_MD, SPACE_SM, SPACE_XS};
+use crate::fluent::{
+    DIALOG_WIDTH_SETTINGS, HEIGHT_SETTING_ROW, RADIUS_CONTROL, RADIUS_FLYOUT, SPACE_LG, SPACE_MD,
+    SPACE_SM, WIDTH_SETTING_COMBO,
+};
 use crate::message::{settings, theme, Message as AppMessage};
 use crate::theme::{theme_options, AppTheme};
 use crate::widget::lucide_icon;
@@ -19,7 +22,6 @@ pub mod locale {
     }
 }
 
-const DIALOG_WIDTH: f32 = 400.0;
 const THEME_MENU_HEIGHT: f32 = 280.0;
 const CLOSE_BUTTON_SIZE: f32 = 32.0;
 const CLOSE_ICON_SIZE: f32 = 16.0;
@@ -53,7 +55,8 @@ impl SettingsDialogWidget {
             |option| AppMessage::Theme(theme::Message::Selected(option.theme)),
         )
         .width(Fill)
-        .menu_height(Length::Fixed(THEME_MENU_HEIGHT));
+        .menu_height(Length::Fixed(THEME_MENU_HEIGHT))
+        .style(pick_list_style);
 
         let languages: Vec<LanguageOption> = Language::ALL
             .iter()
@@ -73,25 +76,26 @@ impl SettingsDialogWidget {
             selected_language,
             |option| AppMessage::Locale(locale::Message::Selected(option.language)),
         )
-        .width(Fill);
+        .width(Fill)
+        .style(pick_list_style);
 
         let body = column![
-            section_panel(theme_label, Icon::Palette, theme_picker.into()),
-            section_panel(language_label, Icon::Languages, language_picker.into()),
+            setting_row(theme_label, Icon::Palette, theme_picker.into()),
+            rule::horizontal(1).style(group_divider),
+            setting_row(language_label, Icon::Languages, language_picker.into()),
         ]
-        .spacing(SPACE_MD)
         .width(Fill);
 
         let dialog = mouse_area(
             container(
                 column![
                     header(title),
-                    rule::horizontal(1),
-                    body.padding([SPACE_MD, SPACE_LG]),
+                    rule::horizontal(1).style(dialog_divider),
+                    container(body).padding([SPACE_MD, SPACE_LG]),
                 ]
                 .width(Fill),
             )
-            .width(DIALOG_WIDTH)
+            .width(DIALOG_WIDTH_SETTINGS)
             .style(dialog_container),
         )
         .on_press(AppMessage::Settings(settings::Message::PressInside));
@@ -137,8 +141,7 @@ impl fmt::Display for LanguageOption {
 
 fn header(title: String) -> Element<'static, AppMessage> {
     row![
-        lucide_icon::icon_muted::<AppMessage>(Icon::Settings, 16.0, 0.72),
-        text(title).size(15),
+        text(title).size(14),
         Space::new().width(Fill),
         button(
             container(lucide_icon::icon_muted::<AppMessage>(Icon::X, CLOSE_ICON_SIZE, 0.72))
@@ -147,47 +150,66 @@ fn header(title: String) -> Element<'static, AppMessage> {
                 .align_x(alignment::Horizontal::Center)
                 .align_y(alignment::Vertical::Center),
         )
-            .on_press(AppMessage::Settings(settings::Message::Close))
-            .width(Length::Fixed(CLOSE_BUTTON_SIZE))
-            .height(Length::Fixed(CLOSE_BUTTON_SIZE))
-            .padding(0)
-            .style(icon_button),
+        .on_press(AppMessage::Settings(settings::Message::Close))
+        .width(Length::Fixed(CLOSE_BUTTON_SIZE))
+        .height(Length::Fixed(CLOSE_BUTTON_SIZE))
+        .padding(0)
+        .style(icon_button),
     ]
     .spacing(SPACE_SM)
     .align_y(alignment::Vertical::Center)
     .padding([SPACE_MD, SPACE_LG])
+    .height(Length::Fixed(HEIGHT_SETTING_ROW))
     .width(Fill)
     .into()
 }
 
-fn section_panel(
-    title: String,
+fn setting_row(
+    label: String,
     icon: Icon,
     control: Element<'_, AppMessage>,
 ) -> Element<'_, AppMessage> {
-    container(
-        column![
-            row![
-                lucide_icon::icon_muted::<AppMessage>(icon, 14.0, 0.6),
-                text(title).size(12).style(section_title),
-            ]
-            .spacing(SPACE_XS)
-            .align_y(alignment::Vertical::Center),
-            control,
+    row![
+        row![
+            lucide_icon::icon_muted::<AppMessage>(icon, 14.0, 0.72),
+            text(label).size(13),
         ]
         .spacing(SPACE_SM)
-        .width(Fill),
-    )
-    .padding(SPACE_SM)
+        .align_y(alignment::Vertical::Center),
+        Space::new().width(Fill),
+        container(control)
+            .width(Length::Fixed(WIDTH_SETTING_COMBO))
+            .align_y(alignment::Vertical::Center),
+    ]
+    .align_y(alignment::Vertical::Center)
+    .height(Length::Fixed(HEIGHT_SETTING_ROW))
     .width(Fill)
-    .style(section_container)
     .into()
 }
 
-fn section_title(theme: &Theme) -> iced::widget::text::Style {
+fn pick_list_style(theme: &Theme, status: pick_list::Status) -> pick_list::Style {
     let palette = theme.extended_palette();
-    iced::widget::text::Style {
-        color: Some(palette.background.base.text.scale_alpha(0.65)),
+    let active = pick_list::Style {
+        text_color: palette.background.base.text,
+        background: palette.background.base.color.into(),
+        placeholder_color: palette.background.base.text.scale_alpha(0.45),
+        handle_color: palette.background.base.text.scale_alpha(0.72),
+        border: iced::Border {
+            radius: RADIUS_CONTROL.into(),
+            width: 1.0,
+            color: palette.background.strong.color.scale_alpha(0.55),
+        },
+    };
+
+    match status {
+        pick_list::Status::Active => active,
+        pick_list::Status::Hovered | pick_list::Status::Opened { .. } => pick_list::Style {
+            border: iced::Border {
+                color: palette.primary.strong.color,
+                ..active.border
+            },
+            ..active
+        },
     }
 }
 
@@ -197,36 +219,49 @@ fn dialog_container(theme: &Theme) -> iced::widget::container::Style {
         background: Some(iced::Background::Color(palette.background.base.color)),
         border: iced::Border {
             width: 1.0,
-            color: palette.background.strong.color,
+            color: palette.background.strong.color.scale_alpha(0.35),
             radius: RADIUS_FLYOUT.into(),
             ..Default::default()
         },
         shadow: iced::Shadow {
-            color: iced::Color::BLACK.scale_alpha(0.22),
-            offset: iced::Vector::new(0.0, 12.0),
-            blur_radius: 32.0,
+            color: iced::Color::BLACK.scale_alpha(0.16),
+            offset: iced::Vector::new(0.0, 8.0),
+            blur_radius: 24.0,
         },
         ..Default::default()
     }
 }
 
-fn section_container(theme: &Theme) -> iced::widget::container::Style {
+fn dialog_divider(theme: &Theme) -> rule::Style {
     let palette = theme.extended_palette();
-    iced::widget::container::Style {
-        background: Some(iced::Background::Color(palette.background.weak.color)),
-        border: iced::Border {
-            width: 1.0,
-            color: palette.background.strong.color.scale_alpha(0.45),
-            radius: RADIUS_CONTROL.into(),
-            ..Default::default()
-        },
-        ..Default::default()
+    rule::Style {
+        color: palette.background.strong.color.scale_alpha(0.45),
+        radius: 0.0.into(),
+        fill_mode: rule::FillMode::Full,
+        snap: false,
     }
 }
 
-pub fn backdrop(_theme: &Theme) -> iced::widget::container::Style {
+fn group_divider(theme: &Theme) -> rule::Style {
+    let palette = theme.extended_palette();
+    rule::Style {
+        color: palette.background.strong.color.scale_alpha(0.35),
+        radius: 0.0.into(),
+        fill_mode: rule::FillMode::Full,
+        snap: false,
+    }
+}
+
+pub fn backdrop(theme: &Theme) -> iced::widget::container::Style {
+    let palette = theme.extended_palette();
+    let dim = if palette.is_dark {
+        iced::Color::BLACK.scale_alpha(0.45)
+    } else {
+        iced::Color::BLACK.scale_alpha(0.32)
+    };
+
     iced::widget::container::Style {
-        background: Some(iced::Background::Color(iced::Color::BLACK.scale_alpha(0.4))),
+        background: Some(iced::Background::Color(dim)),
         ..Default::default()
     }
 }
@@ -236,7 +271,18 @@ fn icon_button(theme: &Theme, status: button::Status) -> button::Style {
     match status {
         button::Status::Hovered => button::Style {
             background: Some(iced::Background::Color(
-                palette.background.strong.color.scale_alpha(0.35),
+                palette.background.strong.color.scale_alpha(0.4),
+            )),
+            text_color: palette.background.base.text,
+            border: iced::Border {
+                radius: RADIUS_CONTROL.into(),
+                ..Default::default()
+            },
+            ..button::Style::default()
+        },
+        button::Status::Pressed => button::Style {
+            background: Some(iced::Background::Color(
+                palette.primary.weak.color.scale_alpha(0.85),
             )),
             text_color: palette.background.base.text,
             border: iced::Border {

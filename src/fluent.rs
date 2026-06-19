@@ -18,3 +18,7 @@ pub const PAGE_PADDING_H: f32 = 16.0;
 pub const PAGE_PADDING_V: f32 = 8.0;
 
 pub const NAV_BUTTON_SIZE: f32 = 32.0;
+
+pub const DIALOG_WIDTH_SETTINGS: f32 = 380.0;
+pub const HEIGHT_SETTING_ROW: f32 = 40.0;
+pub const WIDTH_SETTING_COMBO: f32 = 200.0;
