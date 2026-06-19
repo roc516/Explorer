@@ -1,18 +1,16 @@
-pub mod explorer;
-pub mod file_list;
 pub mod input;
-pub mod locale;
 pub mod settings;
 pub mod theme;
-pub mod tree;
+
+use crate::widget::{directory_tree, file_list, settings_dialog, toolbar};
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Explorer(explorer::Message),
+    Explorer(toolbar::Message),
     FileList(file_list::Message),
-    Tree(tree::Message),
+    Tree(directory_tree::Message),
     Theme(theme::Message),
-    Locale(locale::Message),
+    Locale(settings_dialog::locale::Message),
     Settings(settings::Message),
     Input(input::Message),
 }

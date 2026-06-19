@@ -1,11 +1,19 @@
+use std::path::PathBuf;
+
 use explorer_core::{ids, ExplorerModel, FileEntry};
 use iced::widget::{column, container, mouse_area, row, rule, scrollable, text};
 use iced::{alignment, Element, Fill, Length, Task, Theme};
 use lucide_icons::Icon;
 
 use crate::fluent::{PAGE_PADDING_H, RADIUS_CONTROL, SPACE_LG, SPACE_SM, SPACE_XS};
-use crate::message::file_list;
 use crate::widget::lucide_icon;
+
+#[derive(Debug, Clone)]
+pub enum Message {
+    EntryClicked(usize),
+    EntryDoubleClicked(usize),
+    DirectoryLoaded(Result<(PathBuf, Vec<FileEntry>), String>),
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
@@ -22,21 +30,21 @@ impl FileListWidget {
     pub fn update(
         &self,
         model: &mut ExplorerModel,
-        message: file_list::Message,
-    ) -> (Task<file_list::Message>, Option<Action>) {
+        message: Message,
+    ) -> (Task<Message>, Option<Action>) {
         match message {
-            file_list::Message::EntryClicked(index) => {
+            Message::EntryClicked(index) => {
                 model.select_entry(index);
                 (Task::none(), None)
             }
-            file_list::Message::EntryDoubleClicked(index) => {
+            Message::EntryDoubleClicked(index) => {
                 let task = model
                     .open_entry(index)
                     .map(load_directory_task)
                     .unwrap_or_else(Task::none);
                 (task, None)
             }
-            file_list::Message::DirectoryLoaded(result) => {
+            Message::DirectoryLoaded(result) => {
                 let action = result
                     .as_ref()
                     .ok()
@@ -47,7 +55,7 @@ impl FileListWidget {
         }
     }
 
-    pub fn view<'a>(&self, model: &'a ExplorerModel) -> Element<'a, file_list::Message> {
+    pub fn view<'a>(&self, model: &'a ExplorerModel) -> Element<'a, Message> {
         let bundle = model.bundle;
         let column_name = bundle.tr(ids::COLUMN_NAME);
         let column_modified = bundle.tr(ids::COLUMN_MODIFIED);
@@ -101,11 +109,11 @@ impl Default for FileListWidget {
     }
 }
 
-pub fn load_directory_task(path: std::path::PathBuf) -> Task<file_list::Message> {
+pub fn load_directory_task(path: std::path::PathBuf) -> Task<Message> {
     use explorer_core::read_directory;
     Task::perform(
         async move { read_directory(&path).map(|entries| (path, entries)) },
-        file_list::Message::DirectoryLoaded,
+        Message::DirectoryLoaded,
     )
 }
 
@@ -114,9 +122,9 @@ fn file_row<'a>(
     entry: &'a FileEntry,
     selected: bool,
     bundle: &explorer_core::LanguageBundle,
-) -> Element<'a, file_list::Message> {
+) -> Element<'a, Message> {
     let content = row![
-        container(lucide_icon::icon::<file_list::Message>(
+        container(lucide_icon::icon::<Message>(
             if entry.is_dir {
                 Icon::Folder
             } else {
@@ -150,12 +158,12 @@ fn file_row<'a>(
                 normal_row
             }),
     )
-    .on_press(file_list::Message::EntryClicked(index))
-    .on_double_click(file_list::Message::EntryDoubleClicked(index))
+    .on_press(Message::EntryClicked(index))
+    .on_double_click(Message::EntryDoubleClicked(index))
     .into()
 }
 
-fn header_cell(label: String, width: f32) -> Element<'static, file_list::Message> {
+fn header_cell(label: String, width: f32) -> Element<'static, Message> {
     text(label)
         .size(12)
         .width(Length::Fixed(width))

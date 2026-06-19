@@ -6,9 +6,18 @@ use iced::{alignment, Element, Fill, Length, Theme};
 use lucide_icons::Icon;
 
 use crate::fluent::{RADIUS_CONTROL, RADIUS_FLYOUT, SPACE_LG, SPACE_MD, SPACE_SM, SPACE_XS};
-use crate::message::{locale, settings, theme, Message};
+use crate::message::{settings, theme, Message as AppMessage};
 use crate::theme::{theme_options, AppTheme};
 use crate::widget::lucide_icon;
+
+pub mod locale {
+    use explorer_core::Language;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum Message {
+        Selected(Language),
+    }
+}
 
 const DIALOG_WIDTH: f32 = 400.0;
 const THEME_MENU_HEIGHT: f32 = 280.0;
@@ -27,7 +36,7 @@ impl SettingsDialogWidget {
         bundle: LanguageBundle,
         theme_choice: AppTheme,
         language: Language,
-    ) -> Element<'_, Message> {
+    ) -> Element<'_, AppMessage> {
         let title = bundle.tr(ids::SETTINGS_TITLE);
         let theme_label = bundle.tr(ids::TOOLBAR_THEME);
         let language_label = bundle.tr(ids::TOOLBAR_LANGUAGE);
@@ -41,7 +50,7 @@ impl SettingsDialogWidget {
         let theme_picker = pick_list(
             themes,
             selected_theme,
-            |option| Message::Theme(theme::Message::Selected(option.theme)),
+            |option| AppMessage::Theme(theme::Message::Selected(option.theme)),
         )
         .width(Fill)
         .menu_height(Length::Fixed(THEME_MENU_HEIGHT));
@@ -62,7 +71,7 @@ impl SettingsDialogWidget {
         let language_picker = pick_list(
             languages,
             selected_language,
-            |option| Message::Locale(locale::Message::Selected(option.language)),
+            |option| AppMessage::Locale(locale::Message::Selected(option.language)),
         )
         .width(Fill);
 
@@ -85,7 +94,7 @@ impl SettingsDialogWidget {
             .width(DIALOG_WIDTH)
             .style(dialog_container),
         )
-        .on_press(Message::Settings(settings::Message::PressInside));
+        .on_press(AppMessage::Settings(settings::Message::PressInside));
 
         column![
             Space::new().height(Fill),
@@ -126,19 +135,19 @@ impl fmt::Display for LanguageOption {
     }
 }
 
-fn header(title: String) -> Element<'static, Message> {
+fn header(title: String) -> Element<'static, AppMessage> {
     row![
-        lucide_icon::icon_muted::<Message>(Icon::Settings, 16.0, 0.72),
+        lucide_icon::icon_muted::<AppMessage>(Icon::Settings, 16.0, 0.72),
         text(title).size(15),
         Space::new().width(Fill),
         button(
-            container(lucide_icon::icon_muted::<Message>(Icon::X, CLOSE_ICON_SIZE, 0.72))
+            container(lucide_icon::icon_muted::<AppMessage>(Icon::X, CLOSE_ICON_SIZE, 0.72))
                 .width(Length::Fixed(CLOSE_BUTTON_SIZE))
                 .height(Length::Fixed(CLOSE_BUTTON_SIZE))
                 .align_x(alignment::Horizontal::Center)
                 .align_y(alignment::Vertical::Center),
         )
-            .on_press(Message::Settings(settings::Message::Close))
+            .on_press(AppMessage::Settings(settings::Message::Close))
             .width(Length::Fixed(CLOSE_BUTTON_SIZE))
             .height(Length::Fixed(CLOSE_BUTTON_SIZE))
             .padding(0)
@@ -154,12 +163,12 @@ fn header(title: String) -> Element<'static, Message> {
 fn section_panel(
     title: String,
     icon: Icon,
-    control: Element<'_, Message>,
-) -> Element<'_, Message> {
+    control: Element<'_, AppMessage>,
+) -> Element<'_, AppMessage> {
     container(
         column![
             row![
-                lucide_icon::icon_muted::<Message>(icon, 14.0, 0.6),
+                lucide_icon::icon_muted::<AppMessage>(icon, 14.0, 0.6),
                 text(title).size(12).style(section_title),
             ]
             .spacing(SPACE_XS)
