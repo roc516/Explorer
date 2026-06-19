@@ -1,0 +1,17 @@
+[package]
+name = "explorer-core"
+version = "0.1.0"
+edition = "2021"
+description = "Core file explorer logic without UI dependencies"
+
+[dependencies]
+chrono = "0.4"
+dirs = "6"
+fixed_decimal = "0.7.2"
+fluent = "0.17.0"
+fluent-bundle = "0.16.0"
+icu_datetime = { version = "2.2.0", features = ["compiled_data", "unstable_chrono_0_4"] }
+icu_decimal = { version = "2.2.0", features = ["compiled_data"] }
+icu_locale = { version = "2.2.0", features = ["compiled_data"] }
+open = "5"
+unic-langid = { version = "0.9.6", features = ["macros"] }

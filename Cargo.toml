@@ -1,0 +1,14 @@
+[workspace]
+members = ["explorer-core"]
+resolver = "2"
+
+[package]
+name = "explorer"
+version = "0.1.0"
+edition = "2021"
+description = "A Windows Explorer-like file manager built with Iced"
+
+[dependencies]
+explorer-core = { path = "explorer-core" }
+iced = { version = "0.14", features = ["tokio", "advanced"] }
+lucide-icons = { version = "1.20", features = ["iced"] }
