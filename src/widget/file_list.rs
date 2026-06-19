@@ -1,12 +1,20 @@
 use std::path::PathBuf;
 
 use explorer_core::{ids, ExplorerModel, FileEntry};
-use iced::widget::{column, container, mouse_area, row, rule, scrollable, text};
+use iced::widget::{column, container, mouse_area, row, rule, scrollable, text, Space};
+use iced::widget::text::Wrapping;
 use iced::{alignment, Element, Fill, Length, Task, Theme};
 use lucide_icons::Icon;
 
 use crate::fluent::{PAGE_PADDING_H, RADIUS_CONTROL, SPACE_LG, SPACE_SM, SPACE_XS};
 use crate::widget::lucide_icon;
+
+const COL_ICON: f32 = 24.0;
+const COL_NAME: f32 = 248.0;
+const COL_MODIFIED: f32 = 160.0;
+const COL_TYPE: f32 = 120.0;
+const COL_SIZE: f32 = 90.0;
+const ELLIPSIS: char = '…';
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -66,11 +74,14 @@ impl FileListWidget {
 
         let header = container(
             row![
-                header_cell(column_name, 280.0),
-                header_cell(column_modified, 160.0),
-                header_cell(column_type, 120.0),
-                header_cell(column_size, 90.0),
+                Space::new().width(Length::Fixed(COL_ICON)),
+                header_cell(column_name, COL_NAME),
+                header_cell(column_modified, COL_MODIFIED),
+                header_cell(column_type, COL_TYPE),
+                header_cell(column_size, COL_SIZE),
             ]
+            .spacing(SPACE_SM)
+            .align_y(alignment::Vertical::Center)
             .width(Fill),
         )
         .padding([SPACE_SM, PAGE_PADDING_H]);
@@ -123,6 +134,10 @@ fn file_row<'a>(
     selected: bool,
     bundle: &explorer_core::LanguageBundle,
 ) -> Element<'a, Message> {
+    let modified = entry.modified_label(bundle);
+    let type_label = entry.type_label(bundle);
+    let size = entry.size_label(bundle);
+
     let content = row![
         container(lucide_icon::icon::<Message>(
             if entry.is_dir {
@@ -132,17 +147,14 @@ fn file_row<'a>(
             },
             16.0,
         ))
-        .width(Length::Fixed(24.0))
+        .width(Length::Fixed(COL_ICON))
         .align_x(alignment::Horizontal::Center)
         .align_y(alignment::Vertical::Center),
-        text(&entry.name).width(Length::Fixed(248.0)).size(14),
-        text(entry.modified_label(bundle))
-            .width(Length::Fixed(160.0))
-            .size(13),
-        text(entry.type_label(bundle))
-            .width(Length::Fixed(120.0))
-            .size(13),
-        text(entry.size_label(bundle)).width(Length::Fixed(90.0)).size(13),
+        clipped_cell(&entry.name, COL_NAME, 14.0),
+        clipped_cell(modified, COL_MODIFIED, 13.0),
+        clipped_cell(type_label, COL_TYPE, 13.0),
+        clipped_cell(size, COL_SIZE, 13.0),
+        Space::new().width(Fill),
     ]
     .spacing(SPACE_SM)
     .align_y(alignment::Vertical::Center)
@@ -150,7 +162,7 @@ fn file_row<'a>(
 
     mouse_area(
         container(content)
-            .padding([SPACE_XS, SPACE_SM])
+            .padding([SPACE_XS, 0.0])
             .width(Fill)
             .style(if selected {
                 selected_row
@@ -164,10 +176,56 @@ fn file_row<'a>(
 }
 
 fn header_cell(label: String, width: f32) -> Element<'static, Message> {
-    text(label)
-        .size(12)
-        .width(Length::Fixed(width))
-        .into()
+    clipped_cell(label, width, 12.0)
+}
+
+fn clipped_cell(label: impl AsRef<str>, width: f32, size: f32) -> Element<'static, Message> {
+    let display = truncate_to_width(label.as_ref(), width, size);
+    container(
+        text(display)
+            .size(size)
+            .wrapping(Wrapping::None),
+    )
+    .width(Length::Fixed(width))
+    .clip(true)
+    .into()
+}
+
+fn truncate_to_width(text: &str, width: f32, font_size: f32) -> String {
+    let max_units = (width / (font_size * 0.58)).floor() as usize;
+    if max_units == 0 {
+        return ELLIPSIS.to_string();
+    }
+
+    let total_units: usize = text.chars().map(char_width_units).sum();
+    if total_units <= max_units {
+        return text.to_string();
+    }
+
+    let ellipsis_units = char_width_units(ELLIPSIS);
+    let budget = max_units.saturating_sub(ellipsis_units);
+    let mut used = 0usize;
+    let mut result = String::new();
+
+    for ch in text.chars() {
+        let units = char_width_units(ch);
+        if used + units > budget {
+            break;
+        }
+        used += units;
+        result.push(ch);
+    }
+
+    result.push(ELLIPSIS);
+    result
+}
+
+fn char_width_units(ch: char) -> usize {
+    if ch.is_ascii() {
+        1
+    } else {
+        2
+    }
 }
 
 fn selected_row(theme: &Theme) -> iced::widget::container::Style {
