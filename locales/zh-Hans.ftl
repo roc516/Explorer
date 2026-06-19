@@ -13,7 +13,7 @@ entry-file-type = { $extension } 文件
 folder-empty = 此文件夹为空
 tree-no-locations = 无可用位置
 
-window-title = 资源管理器
+window-title = Explorer
 
 toolbar-address = 地址
 toolbar-address-placeholder = 输入路径后按 Enter 跳转...

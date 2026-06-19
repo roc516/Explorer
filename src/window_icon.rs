@@ -1,44 +1,45 @@
+use fontdue::{Font, FontSettings};
 use iced::window::icon::{self, Icon};
+use lucide_icons::{Icon as LucideIcon, LUCIDE_FONT_BYTES};
 
 const SIZE: u32 = 32;
+const GLYPH_SCALE: f32 = 22.0;
+const ICON_COLOR: [u8; 3] = [59, 130, 246];
 
 pub fn app_icon() -> Icon {
-    icon::from_rgba(build_rgba(), SIZE, SIZE).expect("valid window icon")
+    icon::from_rgba(render_lucide(LucideIcon::FolderOpen), SIZE, SIZE)
+        .expect("valid window icon")
 }
 
-fn build_rgba() -> Vec<u8> {
-    let mut rgba = vec![0u8; (SIZE * SIZE * 4) as usize];
+fn render_lucide(icon: LucideIcon) -> Vec<u8> {
+    let font =
+        Font::from_bytes(LUCIDE_FONT_BYTES, FontSettings::default()).expect("lucide font");
+    let (metrics, bitmap) = font.rasterize(char::from(icon), GLYPH_SCALE);
 
-    for y in 0..SIZE {
-        for x in 0..SIZE {
-            let color = pixel_color(x, y);
-            let index = ((y * SIZE + x) * 4) as usize;
-            rgba[index] = color[0];
-            rgba[index + 1] = color[1];
-            rgba[index + 2] = color[2];
-            rgba[index + 3] = color[3];
+    let mut rgba = vec![0u8; (SIZE * SIZE * 4) as usize];
+    let offset_x = (SIZE.saturating_sub(metrics.width as u32)) / 2;
+    let offset_y = (SIZE.saturating_sub(metrics.height as u32)) / 2;
+
+    for y in 0..metrics.height {
+        for x in 0..metrics.width {
+            let alpha = bitmap[y * metrics.width + x];
+            if alpha == 0 {
+                continue;
+            }
+
+            let px = offset_x + x as u32;
+            let py = offset_y + y as u32;
+            if px >= SIZE || py >= SIZE {
+                continue;
+            }
+
+            let index = ((py * SIZE + px) * 4) as usize;
+            rgba[index] = ICON_COLOR[0];
+            rgba[index + 1] = ICON_COLOR[1];
+            rgba[index + 2] = ICON_COLOR[2];
+            rgba[index + 3] = alpha;
         }
     }
 
     rgba
-}
-
-fn pixel_color(x: u32, y: u32) -> [u8; 4] {
-    let tab = (8..=18).contains(&x) && (8..=11).contains(&y);
-    let body = (5..=26).contains(&x) && (11..=25).contains(&y);
-    let flap = (5..=18).contains(&x) && (11..=14).contains(&y);
-
-    if tab {
-        return [96, 165, 250, 255];
-    }
-
-    if body {
-        let highlight = flap || (x <= 7 && y <= 16);
-        if highlight {
-            return [147, 197, 253, 255];
-        }
-        return [59, 130, 246, 255];
-    }
-
-    [0, 0, 0, 0]
 }

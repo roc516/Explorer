@@ -12,3 +12,4 @@ description = "A Windows Explorer-like file manager built with Iced"
 explorer-core = { path = "explorer-core" }
 iced = { version = "0.14", features = ["tokio", "advanced"] }
 lucide-icons = { version = "1.20", features = ["iced"] }
+fontdue = "0.9"
