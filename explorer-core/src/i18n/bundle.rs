@@ -5,8 +5,6 @@ use std::time::SystemTime;
 use chrono::Local;
 use fluent::{FluentArgs, FluentResource, FluentValue};
 use fluent_bundle::FluentBundle;
-use icu_datetime::fieldsets;
-use icu_datetime::DateTimeFormatter;
 use icu_decimal::options::DecimalFormatterOptions;
 use icu_decimal::DecimalFormatter;
 use icu_locale::Locale as IcuLocale;
@@ -107,10 +105,10 @@ impl LanguageBundle {
 
     pub fn format_datetime(&self, time: SystemTime) -> String {
         let datetime = chrono::DateTime::<Local>::from(time);
-        with_datetime_formatter(self.locale, |formatter| {
-            formatter.format(&datetime.naive_local()).to_string()
-        })
-        .unwrap_or_else(|| datetime.format("%Y-%m-%d %H:%M").to_string())
+        match self.locale {
+            Locale::ZhHans => datetime.format("%Y年%m月%d日 %H:%M:%S").to_string(),
+            Locale::En => datetime.format("%Y-%m-%d %H:%M:%S").to_string(),
+        }
     }
 
     fn format_decimal(&self, value: f64, fraction_digits: u8) -> String {
@@ -195,37 +193,6 @@ fn with_decimal_formatter<R>(locale: Locale, f: impl FnOnce(&DecimalFormatter) -
                 DecimalFormatter::try_new(
                     icu_locale(Locale::ZhHans).into(),
                     DecimalFormatterOptions::default(),
-                )
-                .ok()?,
-            ]);
-        }
-
-        cache
-            .as_ref()
-            .map(|formatters| f(&formatters[locale_index(locale)]))
-    })
-}
-
-fn with_datetime_formatter<R>(
-    locale: Locale,
-    f: impl FnOnce(&DateTimeFormatter<fieldsets::YMDT>) -> R,
-) -> Option<R> {
-    thread_local! {
-        static CACHE: RefCell<Option<[DateTimeFormatter<fieldsets::YMDT>; 2]>> = RefCell::new(None);
-    }
-
-    CACHE.with(|cache| {
-        let mut cache = cache.borrow_mut();
-        if cache.is_none() {
-            *cache = Some([
-                DateTimeFormatter::try_new(
-                    icu_locale(Locale::En).into(),
-                    fieldsets::YMDT::medium(),
-                )
-                .ok()?,
-                DateTimeFormatter::try_new(
-                    icu_locale(Locale::ZhHans).into(),
-                    fieldsets::YMDT::medium(),
                 )
                 .ok()?,
             ]);

@@ -10,7 +10,6 @@ dirs = "6"
 fixed_decimal = "0.7.2"
 fluent = "0.17.0"
 fluent-bundle = "0.16.0"
-icu_datetime = { version = "2.2.0", features = ["compiled_data", "unstable_chrono_0_4"] }
 icu_decimal = { version = "2.2.0", features = ["compiled_data"] }
 icu_locale = { version = "2.2.0", features = ["compiled_data"] }
 open = "5"
