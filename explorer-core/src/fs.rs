@@ -1,7 +1,60 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use crate::entry::FileEntry;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PathBreadcrumb {
+    pub path: PathBuf,
+    pub label: String,
+}
+
+pub fn path_breadcrumbs(path: &Path) -> Vec<PathBreadcrumb> {
+    let mut segments = Vec::new();
+    let mut acc = PathBuf::new();
+
+    for component in path.components() {
+        match component {
+            Component::Prefix(_) => {
+                acc.push(component);
+                segments.push(PathBreadcrumb {
+                    path: acc.clone(),
+                    label: acc.display().to_string(),
+                });
+            }
+            Component::RootDir => {
+                acc.push(component);
+                if let Some(last) = segments.last_mut() {
+                    last.path = acc.clone();
+                } else {
+                    segments.push(PathBreadcrumb {
+                        path: acc.clone(),
+                        label: acc.display().to_string(),
+                    });
+                }
+            }
+            Component::Normal(name) => {
+                acc.push(component);
+                segments.push(PathBreadcrumb {
+                    path: acc.clone(),
+                    label: name.to_string_lossy().into_owned(),
+                });
+            }
+            Component::CurDir | Component::ParentDir => {
+                acc.push(component);
+            }
+        }
+    }
+
+    if segments.is_empty() {
+        segments.push(PathBreadcrumb {
+            path: path.to_path_buf(),
+            label: path.display().to_string(),
+        });
+    }
+
+    segments
+}
 
 pub fn read_directory(path: &Path) -> Result<Vec<FileEntry>, String> {
     let entries = fs::read_dir(path).map_err(|err| err.to_string())?;

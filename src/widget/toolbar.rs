@@ -1,8 +1,13 @@
-use explorer_core::{ids, LanguageBundle};
-use iced::widget::{container, row, text_input};
-use iced::{alignment, Element, Fill};
+use std::path::Path;
 
-use crate::fluent::{HEIGHT_COMMAND_BAR, PAGE_PADDING_H, SPACE_MD, SPACE_XS};
+use explorer_core::{ids, path_breadcrumbs, LanguageBundle};
+use iced::widget::{button, container, mouse_area, row, scrollable, text, text_input};
+use iced::{alignment, Element, Fill, Theme};
+
+use crate::fluent::{
+    FONT_SIZE_ADDRESS, FONT_SIZE_BREADCRUMB_SEP, HEIGHT_COMMAND_BAR, PAGE_PADDING_H,
+    RADIUS_CONTROL, SPACE_MD, SPACE_SM, SPACE_XS,
+};
 use crate::message::{settings, Message as AppMessage};
 use crate::widget::toolbar_icons::{self, NavIcon};
 
@@ -14,6 +19,8 @@ pub enum Message {
     Refresh,
     AddressEdited(String),
     AddressSubmit,
+    AddressEditStart,
+    BreadcrumbNavigate(std::path::PathBuf),
 }
 
 pub struct ToolbarWidget;
@@ -26,7 +33,9 @@ impl ToolbarWidget {
     pub fn view(
         &self,
         bundle: LanguageBundle,
+        current_path: &Path,
         address_input: &str,
+        address_editing: bool,
         can_go_back: bool,
         can_go_forward: bool,
         can_go_up: bool,
@@ -62,20 +71,27 @@ impl ToolbarWidget {
         ]
         .spacing(SPACE_XS);
 
-        let address_bar = container(
+        let address_bar = container(if address_editing {
             text_input(&address_placeholder, address_input)
                 .on_input(|value| AppMessage::Explorer(Message::AddressEdited(value)))
                 .on_submit(AppMessage::Explorer(Message::AddressSubmit))
-                .width(Fill),
-        )
-        .padding([SPACE_XS, SPACE_MD])
-        .width(Fill);
+                .size(FONT_SIZE_ADDRESS)
+                .width(Fill)
+                .into()
+        } else {
+            breadcrumb_bar(current_path)
+        })
+        .padding([0.0, SPACE_MD])
+        .width(Fill)
+        .height(Fill)
+        .align_y(alignment::Vertical::Center);
 
         container(
             row![nav_buttons, address_bar]
                 .spacing(SPACE_MD)
                 .align_y(alignment::Vertical::Center)
-                .width(Fill),
+                .width(Fill)
+                .height(Fill),
         )
         .padding([SPACE_XS, PAGE_PADDING_H])
         .width(Fill)
@@ -87,5 +103,122 @@ impl ToolbarWidget {
 impl Default for ToolbarWidget {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn breadcrumb_bar(current_path: &Path) -> Element<'static, AppMessage> {
+    let crumbs = path_breadcrumbs(current_path);
+    let last_index = crumbs.len().saturating_sub(1);
+    let mut items: Vec<Element<'static, AppMessage>> = Vec::new();
+
+    for (index, crumb) in crumbs.into_iter().enumerate() {
+        if index > 0 {
+            items.push(
+                text("›")
+                    .size(FONT_SIZE_BREADCRUMB_SEP)
+                    .style(breadcrumb_separator)
+                    .into(),
+            );
+        }
+
+        items.push(breadcrumb_button(
+            crumb.label,
+            crumb.path,
+            index == last_index,
+        ));
+    }
+
+    let trail = row(items)
+        .spacing(SPACE_SM)
+        .align_y(alignment::Vertical::Center);
+
+    mouse_area(
+        container(
+            scrollable(trail)
+                .width(Fill)
+                .direction(scrollable::Direction::Horizontal(
+                    scrollable::Scrollbar::default(),
+                )),
+        )
+        .width(Fill)
+        .align_y(alignment::Vertical::Center),
+    )
+    .on_double_click(AppMessage::Explorer(Message::AddressEditStart))
+    .into()
+}
+
+fn breadcrumb_button(
+    label: String,
+    path: std::path::PathBuf,
+    is_last: bool,
+) -> Element<'static, AppMessage> {
+    button(text(label).size(FONT_SIZE_ADDRESS).style(if is_last {
+        breadcrumb_current_text
+    } else {
+        breadcrumb_link_text
+    }))
+    .on_press(AppMessage::Explorer(Message::BreadcrumbNavigate(path)))
+    .padding([2.0, SPACE_SM])
+    .style(breadcrumb_button_style)
+    .into()
+}
+
+fn breadcrumb_link_text(theme: &Theme) -> iced::widget::text::Style {
+    let palette = theme.extended_palette();
+    iced::widget::text::Style {
+        color: Some(palette.primary.strong.color),
+    }
+}
+
+fn breadcrumb_current_text(theme: &Theme) -> iced::widget::text::Style {
+    let palette = theme.extended_palette();
+    iced::widget::text::Style {
+        color: Some(palette.background.base.text),
+    }
+}
+
+fn breadcrumb_separator(theme: &Theme) -> iced::widget::text::Style {
+    let palette = theme.extended_palette();
+    iced::widget::text::Style {
+        color: Some(palette.background.base.text.scale_alpha(0.45)),
+    }
+}
+
+fn breadcrumb_button_style(theme: &Theme, status: button::Status) -> button::Style {
+    let palette = theme.extended_palette();
+    let radius = RADIUS_CONTROL.into();
+
+    match status {
+        button::Status::Hovered => button::Style {
+            background: Some(iced::Background::Color(
+                palette.background.strong.color.scale_alpha(0.4),
+            )),
+            text_color: palette.background.base.text,
+            border: iced::Border {
+                radius,
+                ..Default::default()
+            },
+            ..button::Style::default()
+        },
+        button::Status::Pressed => button::Style {
+            background: Some(iced::Background::Color(
+                palette.primary.weak.color.scale_alpha(0.85),
+            )),
+            text_color: palette.background.base.text,
+            border: iced::Border {
+                radius,
+                ..Default::default()
+            },
+            ..button::Style::default()
+        },
+        _ => button::Style {
+            background: None,
+            text_color: palette.background.base.text,
+            border: iced::Border {
+                radius,
+                ..Default::default()
+            },
+            ..button::Style::default()
+        },
     }
 }

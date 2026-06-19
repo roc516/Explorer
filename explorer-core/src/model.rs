@@ -27,6 +27,7 @@ pub struct ExplorerModel {
     pub entries: Vec<FileEntry>,
     pub selected_index: Option<usize>,
     pub address_input: String,
+    pub address_editing: bool,
     pub navigation: NavigationHistory,
     pub loading: bool,
     pub error: Option<ModelError>,
@@ -44,6 +45,7 @@ impl ExplorerModel {
             entries: Vec::new(),
             selected_index: None,
             address_input: initial_path.display().to_string(),
+            address_editing: false,
             navigation: NavigationHistory::new(initial_path),
             loading: true,
             error: None,
@@ -138,7 +140,18 @@ impl ExplorerModel {
         self.address_input = value;
     }
 
+    pub fn start_address_edit(&mut self) {
+        self.address_editing = true;
+        self.address_input = self.current_path.display().to_string();
+    }
+
+    pub fn cancel_address_edit(&mut self) {
+        self.address_editing = false;
+        self.address_input = self.current_path.display().to_string();
+    }
+
     pub fn submit_address(&mut self) -> Option<PathBuf> {
+        self.address_editing = false;
         let path = PathBuf::from(self.address_input.trim());
         self.navigate(path)
     }
@@ -174,6 +187,7 @@ impl ExplorerModel {
         result: Result<(PathBuf, Vec<FileEntry>), String>,
     ) {
         self.loading = false;
+        self.address_editing = false;
         match result {
             Ok((path, entries)) => {
                 self.current_path = path.clone();

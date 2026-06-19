@@ -80,7 +80,9 @@ impl App {
         let main = column![
             self.toolbar.view(
                 bundle,
+                &self.model.current_path,
                 &self.model.address_input,
+                self.model.address_editing,
                 self.model.can_go_back(),
                 self.model.can_go_forward(),
                 self.model.can_go_up(),
@@ -174,6 +176,17 @@ impl App {
                 self.model.set_address(value);
                 Task::none()
             }
+            toolbar::Message::AddressEditStart => {
+                self.model.start_address_edit();
+                Task::none()
+            }
+            toolbar::Message::BreadcrumbNavigate(path) => {
+                self.model.address_editing = false;
+                self.model
+                    .navigate(path)
+                    .map(|path| self.load_directory(path))
+                    .unwrap_or_else(Task::none)
+            }
             toolbar::Message::AddressSubmit => self
                 .model
                 .submit_address()
@@ -248,6 +261,10 @@ impl App {
         match key {
             keyboard::Key::Named(keyboard::key::Named::Escape) if self.settings_open => {
                 self.update_settings(settings::Message::Close)
+            }
+            keyboard::Key::Named(keyboard::key::Named::Escape) if self.model.address_editing => {
+                self.model.cancel_address_edit();
+                Task::none()
             }
             keyboard::Key::Named(keyboard::key::Named::Enter) => {
                 if let Some(index) = self.model.selected_index {

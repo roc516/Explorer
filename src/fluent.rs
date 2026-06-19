@@ -12,6 +12,9 @@ pub const HEIGHT_COMMAND_BAR: f32 = 48.0;
 pub const HEIGHT_LIST_ROW: f32 = 32.0;
 pub const HEIGHT_STATUS_BAR: f32 = 32.0;
 
+pub const FONT_SIZE_ADDRESS: f32 = 17.0;
+pub const FONT_SIZE_BREADCRUMB_SEP: f32 = 15.0;
+
 pub const NAV_PANE_WIDTH: f32 = 280.0;
 
 pub const PAGE_PADDING_H: f32 = 16.0;
