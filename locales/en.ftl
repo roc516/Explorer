@@ -26,6 +26,24 @@ toolbar-language = Language
 
 settings-title = Settings
 
+preview-loading = Loading preview...
+preview-load-failed = Failed to load preview
+preview-too-large = File is too large to preview
+preview-not-utf8 = File is not valid UTF-8 text
+preview-not-file = This item cannot be previewed
+preview-unsupported = Preview is not supported for this file type
+preview-unsupported-type = Preview is not supported for .{ $extension } files
+preview-open-external = Open with system
+preview-encoding-label = Encoding
+preview-encoding-auto = Auto
+preview-encoding-utf8 = UTF-8
+preview-encoding-gbk = GBK
+preview-encoding-utf16le = UTF-16 LE
+preview-encoding-utf16be = UTF-16 BE
+preview-encoding-latin1 = Latin-1
+preview-decode-failed = Failed to decode file with selected encoding
+preview-zoom-fit = Fit to window
+
 column-name = Name
 column-modified = Date modified
 column-type = Type

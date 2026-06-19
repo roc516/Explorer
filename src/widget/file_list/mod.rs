@@ -54,11 +54,23 @@ impl FileListWidget {
                 (Task::none(), None)
             }
             Message::EntryDoubleClicked(index) => {
-                let task = model
-                    .open_entry(index)
-                    .map(load_directory_task)
-                    .unwrap_or_else(Task::none);
-                (task, None)
+                let entry = model.entries.get(index).cloned();
+                let action = entry.and_then(|entry| {
+                    if entry.is_dir {
+                        model
+                            .navigate(entry.path)
+                            .map(|path| Action::DirectoryChanged(path))
+                    } else {
+                        Some(Action::PreviewFile(entry.path))
+                    }
+                });
+
+                let task = match &action {
+                    Some(Action::DirectoryChanged(path)) => load_directory_task(path.clone()),
+                    _ => Task::none(),
+                };
+
+                (task, action)
             }
             Message::DirectoryLoaded(result) => {
                 let action = result

@@ -18,4 +18,5 @@ pub enum Message {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
     DirectoryChanged(std::path::PathBuf),
+    PreviewFile(std::path::PathBuf),
 }

@@ -24,5 +24,8 @@ pub const PAGE_PADDING_V: f32 = 8.0;
 pub const NAV_BUTTON_SIZE: f32 = 32.0;
 
 pub const DIALOG_WIDTH_SETTINGS: f32 = 380.0;
+pub const DIALOG_WIDTH_PREVIEW: f32 = 720.0;
+pub const HEIGHT_PREVIEW_BODY: f32 = 480.0;
 pub const HEIGHT_SETTING_ROW: f32 = 40.0;
 pub const WIDTH_SETTING_COMBO: f32 = 200.0;
+pub const HEIGHT_PREVIEW_STATUS_BAR: f32 = 36.0;

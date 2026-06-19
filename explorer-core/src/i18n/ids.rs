@@ -22,6 +22,24 @@ pub const TOOLBAR_LANGUAGE: &str = "toolbar-language";
 
 pub const SETTINGS_TITLE: &str = "settings-title";
 
+pub const PREVIEW_LOADING: &str = "preview-loading";
+pub const PREVIEW_LOAD_FAILED: &str = "preview-load-failed";
+pub const PREVIEW_TOO_LARGE: &str = "preview-too-large";
+pub const PREVIEW_NOT_UTF8: &str = "preview-not-utf8";
+pub const PREVIEW_NOT_FILE: &str = "preview-not-file";
+pub const PREVIEW_UNSUPPORTED: &str = "preview-unsupported";
+pub const PREVIEW_UNSUPPORTED_TYPE: &str = "preview-unsupported-type";
+pub const PREVIEW_OPEN_EXTERNAL: &str = "preview-open-external";
+pub const PREVIEW_ENCODING_LABEL: &str = "preview-encoding-label";
+pub const PREVIEW_ENCODING_AUTO: &str = "preview-encoding-auto";
+pub const PREVIEW_ENCODING_UTF8: &str = "preview-encoding-utf8";
+pub const PREVIEW_ENCODING_GBK: &str = "preview-encoding-gbk";
+pub const PREVIEW_ENCODING_UTF16LE: &str = "preview-encoding-utf16le";
+pub const PREVIEW_ENCODING_UTF16BE: &str = "preview-encoding-utf16be";
+pub const PREVIEW_ENCODING_LATIN1: &str = "preview-encoding-latin1";
+pub const PREVIEW_DECODE_FAILED: &str = "preview-decode-failed";
+pub const PREVIEW_ZOOM_FIT: &str = "preview-zoom-fit";
+
 pub const COLUMN_NAME: &str = "column-name";
 pub const COLUMN_MODIFIED: &str = "column-modified";
 pub const COLUMN_TYPE: &str = "column-type";

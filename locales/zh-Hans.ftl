@@ -22,6 +22,24 @@ toolbar-language = 语言
 
 settings-title = 设置
 
+preview-loading = 正在加载预览...
+preview-load-failed = 无法加载预览
+preview-too-large = 文件过大，无法预览
+preview-not-utf8 = 无法以文本格式预览此文件
+preview-not-file = 无法预览此项目
+preview-unsupported = 不支持预览此文件类型
+preview-unsupported-type = 不支持预览 { $extension } 文件
+preview-open-external = 用系统打开
+preview-encoding-label = 编码
+preview-encoding-auto = 自动
+preview-encoding-utf8 = UTF-8
+preview-encoding-gbk = GBK
+preview-encoding-utf16le = UTF-16 LE
+preview-encoding-utf16be = UTF-16 BE
+preview-encoding-latin1 = Latin-1
+preview-decode-failed = 无法用所选编码解码此文件
+preview-zoom-fit = 适应窗口
+
 column-name = 名称
 column-modified = 修改日期
 column-type = 类型

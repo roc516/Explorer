@@ -13,4 +13,6 @@ fluent-bundle = "0.16.0"
 icu_decimal = { version = "2.2.0", features = ["compiled_data"] }
 icu_locale = { version = "2.2.0", features = ["compiled_data"] }
 open = "5"
+encoding_rs = "0.8"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "ico"] }
 unic-langid = { version = "0.9.6", features = ["macros"] }

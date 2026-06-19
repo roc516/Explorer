@@ -1,12 +1,14 @@
-use explorer_core::{detect_system_locale, ids, ExplorerModel, Language, LanguageBundle, Locale};
+use explorer_core::{detect_system_locale, ids, open_with_system, ExplorerModel, Language, LanguageBundle, Locale};
 use iced::theme::Mode;
-use iced::widget::{column, container, mouse_area, row, rule, stack};
+use iced::widget::{column, row, rule, stack};
 use iced::{keyboard, system, Element, Fill, Subscription, Task, Theme};
 
-use crate::message::{input, settings, theme, Message};
+use crate::message::{input, preview, settings, theme, Message};
 use crate::theme::AppTheme;
 use crate::widget::directory_tree::{self, Action as TreeAction, DirectoryTreeWidget};
 use crate::widget::file_list::{self, Action as FileListAction, FileListWidget};
+use crate::widget::modal as modal_overlay;
+use crate::widget::preview_dialog::{self, PreviewDialogWidget, PreviewState};
 use crate::widget::settings_dialog::{self, SettingsDialogWidget};
 use crate::widget::status_bar::StatusBarWidget;
 use crate::widget::toolbar::{self, ToolbarWidget};
@@ -18,6 +20,8 @@ pub struct App {
     pub file_list: FileListWidget,
     pub status_bar: StatusBarWidget,
     pub settings_dialog: SettingsDialogWidget,
+    pub preview_dialog: PreviewDialogWidget,
+    pub preview: Option<PreviewState>,
     pub theme_choice: AppTheme,
     pub system_mode: Mode,
     pub language: Language,
@@ -41,6 +45,8 @@ impl App {
                 file_list: FileListWidget::new(),
                 status_bar: StatusBarWidget::new(),
                 settings_dialog: SettingsDialogWidget::new(),
+                preview_dialog: PreviewDialogWidget::new(),
+                preview: None,
                 theme_choice: AppTheme::System,
                 system_mode: Mode::default(),
                 language,
@@ -70,6 +76,7 @@ impl App {
             Message::Theme(message) => self.update_theme(message),
             Message::Locale(message) => self.update_locale(message),
             Message::Settings(message) => self.update_settings(message),
+            Message::Preview(message) => self.update_preview(message),
             Message::Input(message) => self.update_input(message),
         }
     }
@@ -100,27 +107,31 @@ impl App {
             self.status_bar.view(&self.model),
         ]
         .width(Fill)
-        .height(Fill);
+        .height(Fill)
+        .into();
+
+        if !self.settings_open && self.preview.is_none() {
+            return main;
+        }
+
+        let mut layers = vec![main];
 
         if self.settings_open {
-            let overlay = mouse_area(
-                container(
-                    self.settings_dialog
-                        .view(bundle, self.theme_choice, self.language),
-                )
-                .width(Fill)
-                .height(Fill)
-                .style(settings_dialog::backdrop),
-            )
-            .on_press(Message::Settings(settings::Message::Close));
-
-            stack![main, overlay]
-                .width(Fill)
-                .height(Fill)
-                .into()
-        } else {
-            main.into()
+            layers.push(modal_overlay::overlay(
+                self.settings_dialog
+                    .view(bundle, self.theme_choice, self.language),
+                Message::Settings(settings::Message::Close),
+            ));
         }
+
+        if let Some(preview) = &self.preview {
+            layers.push(modal_overlay::overlay(
+                self.preview_dialog.view(bundle, preview),
+                Message::Preview(preview::Message::Close),
+            ));
+        }
+
+        stack(layers).width(Fill).height(Fill).into()
     }
 
     pub fn subscription(state: &Self) -> Subscription<Message> {
@@ -199,11 +210,113 @@ impl App {
         let (task, action) = self.file_list.update(&mut self.model, message);
         let mut tasks = vec![task.map(Message::FileList)];
 
-        if let Some(FileListAction::DirectoryChanged(path)) = action {
-            tasks.push(self.directory_tree.sync_path(&path).map(Message::Tree));
+        if let Some(action) = action {
+            match action {
+                FileListAction::DirectoryChanged(path) => {
+                    tasks.push(self.directory_tree.sync_path(&path).map(Message::Tree));
+                }
+                FileListAction::PreviewFile(path) => {
+                    tasks.push(self.open_preview(path));
+                }
+            }
         }
 
         Task::batch(tasks)
+    }
+
+    fn open_preview(&mut self, path: std::path::PathBuf) -> Task<Message> {
+        let name = path
+            .file_name()
+            .map(|value| value.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        self.preview = Some(PreviewState::opening(path.clone(), name));
+        preview_dialog::load_preview_task(path).map(Message::Preview)
+    }
+
+    fn update_preview(&mut self, message: preview::Message) -> Task<Message> {
+        match message {
+            preview::Message::Close => {
+                self.preview = None;
+            }
+            preview::Message::PressInside => {}
+            preview::Message::Loaded(result) => {
+                let bundle = self.bundle();
+                if let Some(state) = &mut self.preview {
+                    state.loading = false;
+                    match result {
+                        Ok(file) => {
+                            state.set_loaded_file(file);
+                        }
+                        Err(code) => {
+                            state.error = Some(match code.as_str() {
+                                "preview-too-large" => bundle.tr(ids::PREVIEW_TOO_LARGE),
+                                "preview-decode-failed" => bundle.tr(ids::PREVIEW_DECODE_FAILED),
+                                "preview-not-file" => bundle.tr(ids::PREVIEW_NOT_FILE),
+                                _ => bundle.tr(ids::PREVIEW_LOAD_FAILED),
+                            });
+                        }
+                    }
+                }
+            }
+            preview::Message::OpenExternal => {
+                if let Some(path) = self.preview.as_ref().map(|state| state.path.clone()) {
+                    if let Err(message) = open_with_system(&path) {
+                        if let Some(state) = &mut self.preview {
+                            state.error = Some(message);
+                        }
+                    }
+                }
+            }
+            preview::Message::EncodingSelected(encoding) => {
+                let bundle = self.bundle();
+                if let Some(state) = &mut self.preview {
+                    if let (Some(text), Some(file)) = (&mut state.text, &mut state.file) {
+                        text.select_encoding(
+                            file,
+                            encoding,
+                            || bundle.tr(ids::PREVIEW_DECODE_FAILED),
+                            || bundle.tr(ids::PREVIEW_LOAD_FAILED),
+                        );
+                    }
+                }
+            }
+            preview::Message::TextEditor(action) => {
+                if let Some(state) = &mut self.preview {
+                    if let Some(text) = &mut state.text {
+                        text.handle_editor_action(action);
+                    }
+                }
+            }
+            preview::Message::ImageZoomIn => {
+                if let Some(state) = &mut self.preview {
+                    if let Some(image) = &mut state.image {
+                        image.zoom_in();
+                    }
+                }
+            }
+            preview::Message::ImageZoomOut => {
+                if let Some(state) = &mut self.preview {
+                    if let Some(image) = &mut state.image {
+                        image.zoom_out();
+                    }
+                }
+            }
+            preview::Message::ImageZoomReset => {
+                if let Some(state) = &mut self.preview {
+                    if let Some(image) = &mut state.image {
+                        image.reset();
+                    }
+                }
+            }
+            preview::Message::ImageWheelZoom(factor) => {
+                if let Some(state) = &mut self.preview {
+                    if let Some(image) = &mut state.image {
+                        image.wheel_zoom(factor);
+                    }
+                }
+            }
+        }
+        Task::none()
     }
 
     fn update_tree(&mut self, message: directory_tree::Message) -> Task<Message> {
@@ -259,6 +372,9 @@ impl App {
         }
 
         match key {
+            keyboard::Key::Named(keyboard::key::Named::Escape) if self.preview.is_some() => {
+                self.update_preview(preview::Message::Close)
+            }
             keyboard::Key::Named(keyboard::key::Named::Escape) if self.settings_open => {
                 self.update_settings(settings::Message::Close)
             }
@@ -266,6 +382,7 @@ impl App {
                 self.model.cancel_address_edit();
                 Task::none()
             }
+            _ if self.preview.is_some() || self.settings_open => Task::none(),
             keyboard::Key::Named(keyboard::key::Named::Enter) => {
                 if let Some(index) = self.model.selected_index {
                     return self.update_file_list(file_list::Message::EntryDoubleClicked(index));

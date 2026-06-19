@@ -1,4 +1,5 @@
 pub mod input;
+pub mod preview;
 pub mod settings;
 pub mod theme;
 
@@ -12,5 +13,6 @@ pub enum Message {
     Theme(theme::Message),
     Locale(settings_dialog::locale::Message),
     Settings(settings::Message),
+    Preview(preview::Message),
     Input(input::Message),
 }
