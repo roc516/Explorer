@@ -1,6 +1,6 @@
 use std::path::{Component, PathBuf};
 
-use super::ops::EPath;
+use super::epath::EPath;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathBreadcrumb {
@@ -21,7 +21,7 @@ pub fn disk_breadcrumbs(path: &std::path::Path, backend: &'static str) -> Vec<Pa
             Component::RootDir => {
                 acc.push(component);
                 if let Some(last) = segments.last_mut() {
-                    last.path = super::ops::disk_path(acc.clone(), backend);
+                    last.path = super::epath::disk_path(acc.clone(), backend);
                 } else {
                     push_disk_breadcrumb(&mut segments, &acc, backend, acc.display().to_string());
                 }
@@ -55,7 +55,7 @@ fn push_disk_breadcrumb(
     label: String,
 ) {
     segments.push(PathBreadcrumb {
-        path: super::ops::disk_path(path.to_path_buf(), backend),
+        path: super::epath::disk_path(path.to_path_buf(), backend),
         label,
     });
 }

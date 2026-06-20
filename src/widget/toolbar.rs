@@ -1,4 +1,4 @@
-use explorer_core::{ids, path_breadcrumbs, EPath, LanguageBundle};
+use explorer_core::{ids, EPath, LanguageBundle};
 use iced::window as iced_window;
 use iced::widget::{button, container, mouse_area, row, scrollable, text, text_input};
 use iced::{alignment, Element, Fill, Theme};
@@ -130,7 +130,7 @@ impl Default for ToolbarWidget {
 }
 
 fn breadcrumb_bar(current_path: &EPath, window_id: iced_window::Id) -> Element<'static, AppMessage> {
-    let crumbs = path_breadcrumbs(current_path);
+    let crumbs = current_path.breadcrumbs();
     let last_index = crumbs.len().saturating_sub(1);
     let mut items: Vec<Element<'static, AppMessage>> = Vec::new();
 

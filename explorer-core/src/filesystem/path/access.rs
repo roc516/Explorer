@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use crate::filesystem::backends::FsBackend;
 
 use super::builders::PathBreadcrumb;
-use super::ops::EPath;
+use super::epath::EPath;
 
 impl EPath {
     pub fn parent(&self) -> Option<EPath> {
@@ -42,7 +42,7 @@ impl EPath {
         with_backend_or(self, |backend| backend.preview_path(self))
     }
 
-    pub(crate) fn breadcrumbs(&self) -> Vec<PathBreadcrumb> {
+    pub fn breadcrumbs(&self) -> Vec<PathBreadcrumb> {
         with_backend_or(self, |backend| backend.breadcrumbs(self))
     }
 

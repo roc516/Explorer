@@ -27,6 +27,11 @@ impl EPath {
         disk_path(path.into(), backend.id())
     }
 
+    pub fn from_address(input: &str, context: &Self) -> Self {
+        Mounter::from_mount_address(input, context)
+            .unwrap_or_else(|| Self::local(input.trim()))
+    }
+
     pub fn disk_ref(&self) -> Result<&std::path::Path, String> {
         if Mounter::is_mount(self) {
             return Err("not-a-disk-path".to_string());

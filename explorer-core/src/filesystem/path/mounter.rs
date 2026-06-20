@@ -2,7 +2,7 @@ use std::path::{Component, PathBuf};
 
 use crate::filesystem::backends::try_registry;
 
-use super::ops::EPath;
+use super::epath::EPath;
 
 pub struct Mounter;
 

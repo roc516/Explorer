@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 
-use crate::filesystem::{list_drives, read_directory, Mounter, EPath};
+use crate::filesystem::{list_drives, Reader, Mounter, EPath};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TreeNode {
@@ -155,7 +155,7 @@ impl DirectoryTree {
 }
 
 pub fn load_tree_children(path: &EPath) -> Result<Vec<TreeNode>, String> {
-    Ok(read_directory(path)?
+    Ok(Reader::read_directory(path)?
         .into_iter()
         .filter(|entry| entry.is_dir)
         .map(|entry| TreeNode {

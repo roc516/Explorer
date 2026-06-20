@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::entry::FileEntry;
-use crate::filesystem::{default_initial_path, from_address_input, parent_path, Mounter, EPath};
+use crate::filesystem::{default_initial_path, Mounter, EPath};
 use crate::i18n::{ids, LanguageBundle};
 use crate::navigation::NavigationHistory;
 use crate::preview;
@@ -111,7 +111,7 @@ impl ExplorerModel {
     }
 
     pub fn can_go_up(&self) -> bool {
-        parent_path(&self.current_path).is_some()
+        self.current_path.parent().is_some()
     }
 
     pub fn navigate(&mut self, path: EPath) -> Option<EPath> {
@@ -135,7 +135,7 @@ impl ExplorerModel {
     }
 
     pub fn go_up(&mut self) -> Option<EPath> {
-        let parent = parent_path(&self.current_path)?;
+        let parent = self.current_path.parent()?;
         self.navigate(parent)
     }
 
@@ -178,7 +178,7 @@ impl ExplorerModel {
 
     pub fn submit_address(&mut self) -> Option<EPath> {
         self.address_editing = false;
-        let path = from_address_input(&self.address_input, &self.current_path);
+        let path = EPath::from_address(&self.address_input, &self.current_path);
 
         if !path.exists() {
             self.error = Some(ModelError::InvalidPath);

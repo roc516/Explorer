@@ -2,7 +2,7 @@ use std::io::{Cursor, Read};
 
 use crate::entry::FileEntry;
 
-use super::ops::EPath;
+use super::epath::EPath;
 
 pub struct Reader;
 
