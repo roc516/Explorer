@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::entry::FileEntry;
-use crate::filesystem::{default_initial_path, from_address_input, parent_path, PathOps};
+use crate::filesystem::{default_initial_path, from_address_input, parent_path, Mounter, EPath};
 use crate::i18n::{ids, LanguageBundle};
 use crate::navigation::NavigationHistory;
 use crate::preview;
@@ -24,20 +24,20 @@ pub enum StatusInfo {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OpenEntryAction {
-    Navigate(PathOps),
-    Preview(PathOps),
+    Navigate(EPath),
+    Preview(EPath),
     OpenArchive(PathBuf),
     OpenedSystem { name: String },
 }
 
 #[derive(Debug, Clone)]
 pub struct ExplorerModel {
-    pub current_path: PathOps,
+    pub current_path: EPath,
     pub entries: Vec<FileEntry>,
     pub selected_index: Option<usize>,
     pub address_input: String,
     pub address_editing: bool,
-    pub reveal_path: Option<PathOps>,
+    pub reveal_path: Option<EPath>,
     pub navigation: NavigationHistory,
     pub loading: bool,
     pub error: Option<ModelError>,
@@ -47,18 +47,18 @@ pub struct ExplorerModel {
 
 impl ExplorerModel {
     pub fn new_local() -> Self {
-        Self::with_path(PathOps::local(default_initial_path()))
+        Self::with_path(EPath::local(default_initial_path()))
     }
 
     pub fn new_mounted(container: PathBuf) -> Self {
         Self::with_path(
-            PathOps::mount_root(container).unwrap_or_else(|message| {
+            Mounter::mount_root(container).unwrap_or_else(|message| {
                 panic!("unsupported archive: {message}")
             }),
         )
     }
 
-    fn with_path(initial_path: PathOps) -> Self {
+    fn with_path(initial_path: EPath) -> Self {
         let bundle = LanguageBundle::new(crate::i18n::Locale::En);
 
         Self {
@@ -114,7 +114,7 @@ impl ExplorerModel {
         parent_path(&self.current_path).is_some()
     }
 
-    pub fn navigate(&mut self, path: PathOps) -> Option<PathOps> {
+    pub fn navigate(&mut self, path: EPath) -> Option<EPath> {
         if !path.exists() {
             self.error = Some(ModelError::InvalidPath);
             self.status = StatusInfo::Path(self.bundle.tr(ids::ERROR_INVALID_PATH));
@@ -134,12 +134,12 @@ impl ExplorerModel {
         Some(path)
     }
 
-    pub fn go_up(&mut self) -> Option<PathOps> {
+    pub fn go_up(&mut self) -> Option<EPath> {
         let parent = parent_path(&self.current_path)?;
         self.navigate(parent)
     }
 
-    pub fn go_back(&mut self) -> Option<PathOps> {
+    pub fn go_back(&mut self) -> Option<EPath> {
         let path = self.navigation.go_back()?;
         self.loading = true;
         self.error = None;
@@ -147,7 +147,7 @@ impl ExplorerModel {
         Some(path)
     }
 
-    pub fn go_forward(&mut self) -> Option<PathOps> {
+    pub fn go_forward(&mut self) -> Option<EPath> {
         let path = self.navigation.go_forward()?;
         self.loading = true;
         self.error = None;
@@ -155,7 +155,7 @@ impl ExplorerModel {
         Some(path)
     }
 
-    pub fn refresh(&mut self) -> Option<PathOps> {
+    pub fn refresh(&mut self) -> Option<EPath> {
         self.loading = true;
         self.error = None;
         self.status = StatusInfo::Loading;
@@ -176,7 +176,7 @@ impl ExplorerModel {
         self.address_input = self.current_path.display();
     }
 
-    pub fn submit_address(&mut self) -> Option<PathOps> {
+    pub fn submit_address(&mut self) -> Option<EPath> {
         self.address_editing = false;
         let path = from_address_input(&self.address_input, &self.current_path);
 
@@ -258,7 +258,7 @@ impl ExplorerModel {
 
     pub fn on_directory_loaded(
         &mut self,
-        result: Result<(PathOps, Vec<FileEntry>), String>,
+        result: Result<(EPath, Vec<FileEntry>), String>,
     ) {
         self.loading = false;
         self.address_editing = false;

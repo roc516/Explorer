@@ -1,15 +1,15 @@
 use std::path::{Path, PathBuf};
 
-use explorer_core::filesystem::{ArchiveMount, PathOps};
+use explorer_core::filesystem::{ArchiveMount, Mounter, EPath};
 
 use super::ZipBackend;
 
 impl ArchiveMount for ZipBackend {
-    fn archive_container<'a>(&self, path: &'a PathOps) -> Option<&'a Path> {
-        path.mount_ref().ok().map(|(container, _)| container)
+    fn archive_container<'a>(&self, path: &'a EPath) -> Option<&'a Path> {
+        Mounter::mount_ref(path).ok().map(|(container, _)| container)
     }
 
-    fn nested_archive_file(&self, _path: &PathOps) -> Option<PathBuf> {
+    fn nested_archive_file(&self, _path: &EPath) -> Option<PathBuf> {
         None
     }
 

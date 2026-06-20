@@ -1,12 +1,12 @@
 use std::time::SystemTime;
 
-use crate::filesystem::PathOps;
+use crate::filesystem::EPath;
 use crate::i18n::{ids, LanguageBundle};
 
 #[derive(Debug, Clone)]
 pub struct FileEntry {
     pub name: String,
-    pub path: PathOps,
+    pub path: EPath,
     pub is_dir: bool,
     pub size: u64,
     pub modified: Option<SystemTime>,

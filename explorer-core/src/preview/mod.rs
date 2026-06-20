@@ -8,7 +8,7 @@ mod word_preview;
 use std::io::Read;
 use std::path::PathBuf;
 
-use crate::filesystem::PathOps;
+use crate::filesystem::{EPath, Reader};
 
 pub use image_preview::ImagePreview;
 pub use pdf_preview::PdfPreview;
@@ -34,12 +34,12 @@ pub struct PreviewFile {
     pub kind: PreviewKind,
 }
 
-pub fn load_preview(path: &PathOps) -> Result<PreviewFile, String> {
-    path.read_file(|reader, size| read_preview_file(path, reader, size))
+pub fn load_preview(path: &EPath) -> Result<PreviewFile, String> {
+    Reader::read_file(path, |reader, size| read_preview_file(path, reader, size))
 }
 
 fn read_preview_file(
-    path: &PathOps,
+    path: &EPath,
     reader: &mut dyn Read,
     size: u64,
 ) -> Result<PreviewFile, String> {
@@ -84,7 +84,7 @@ pub fn is_previewable_extension(ext: &str) -> bool {
         || pdf_preview::is_extension(ext)
 }
 
-pub fn is_previewable(path: &PathOps) -> bool {
+pub fn is_previewable(path: &EPath) -> bool {
     path.extension()
         .as_deref()
         .is_some_and(is_previewable_extension)

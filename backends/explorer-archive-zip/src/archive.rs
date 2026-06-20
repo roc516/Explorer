@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use explorer_core::filesystem::{join_mounted_inner, mount_path, EntryKind};
+use explorer_core::filesystem::{EntryKind, Mounter};
 use explorer_core::FileEntry;
 
 use crate::backend::{ID, ZipBackend};
@@ -41,9 +41,9 @@ impl ZipBackend {
             if parts.len() == 1 {
                 files.push(FileEntry {
                     name: parts[0].to_string(),
-                    path: mount_path(
+                    path: Mounter::mount_path(
                         container.to_path_buf(),
-                        join_mounted_inner(inner, parts[0]),
+                        Mounter::join_mounted_inner(inner, parts[0]),
                         ID,
                     ),
                     is_dir: false,
@@ -58,9 +58,9 @@ impl ZipBackend {
         let mut items = directories
             .into_iter()
             .map(|name| FileEntry {
-                path: mount_path(
+                path: Mounter::mount_path(
                     container.to_path_buf(),
-                    join_mounted_inner(inner, &name),
+                    Mounter::join_mounted_inner(inner, &name),
                     ID,
                 ),
                 name,

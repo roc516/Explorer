@@ -2,7 +2,7 @@ mod document;
 mod image;
 mod text;
 
-use explorer_core::{ids, PathOps, LanguageBundle, PreviewFile, PreviewKind};
+use explorer_core::{ids, EPath, LanguageBundle, PreviewFile, PreviewKind};
 use fluent::{FluentArgs, FluentValue};
 use iced::widget::{
     button, column, container, mouse_area, rule, row, scrollable,
@@ -22,7 +22,7 @@ use crate::widget::wheel_blocker::WheelBlocker;
 
 #[derive(Debug, Clone)]
 pub struct PreviewState {
-    pub path: PathOps,
+    pub path: EPath,
     pub name: String,
     pub loading: bool,
     pub file: Option<PreviewFile>,
@@ -33,7 +33,7 @@ pub struct PreviewState {
 }
 
 impl PreviewState {
-    pub fn opening(path: PathOps, name: String) -> Self {
+    pub fn opening(path: EPath, name: String) -> Self {
         Self { path,
             name,
             loading: true,
@@ -54,7 +54,7 @@ impl PreviewState {
     }
 }
 
-pub fn load_preview_task(path: PathOps) -> Task<preview::Message> {
+pub fn load_preview_task(path: EPath) -> Task<preview::Message> {
     Task::perform(
         async move { explorer_core::load_preview(&path) },
         preview::Message::Loaded,

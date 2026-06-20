@@ -1,22 +1,22 @@
 use std::path::Path;
 
-use explorer_core::filesystem::{FsIo, PathOps};
+use explorer_core::filesystem::{FsIo, Mounter, EPath};
 
 use super::ZipBackend;
 
 impl FsIo for ZipBackend {
-    fn read_directory(&self, path: &PathOps) -> Result<Vec<explorer_core::FileEntry>, String> {
-        let (container, inner) = path.mount_ref()?;
+    fn read_directory(&self, path: &EPath) -> Result<Vec<explorer_core::FileEntry>, String> {
+        let (container, inner) = Mounter::mount_ref(path)?;
         self.read_zip_directory(container, inner)
     }
 
-    fn read_file_bytes(&self, path: &PathOps) -> Result<Vec<u8>, String> {
-        let (container, inner) = path.mount_ref()?;
+    fn read_file_bytes(&self, path: &EPath) -> Result<Vec<u8>, String> {
+        let (container, inner) = Mounter::mount_ref(path)?;
         self.read_zip_bytes(container, inner)
     }
 
-    fn system_open_path(&self, path: &PathOps) -> Result<std::path::PathBuf, String> {
-        let (container, inner) = path.mount_ref()?;
+    fn system_open_path(&self, path: &EPath) -> Result<std::path::PathBuf, String> {
+        let (container, inner) = Mounter::mount_ref(path)?;
         self.extract_for_open(container, inner)
     }
 

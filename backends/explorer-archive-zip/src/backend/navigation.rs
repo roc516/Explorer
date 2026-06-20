@@ -1,36 +1,36 @@
 use std::path::{Component, Path, PathBuf};
 
-use explorer_core::filesystem::{disk_breadcrumbs, mount_path, try_registry, PathNavigation, PathOps};
+use explorer_core::filesystem::{disk_breadcrumbs, try_registry, Mounter, PathNavigation, EPath};
 
 use super::identity::ID;
 use super::ZipBackend;
 
 impl PathNavigation for ZipBackend {
-    fn parent(&self, path: &PathOps) -> Option<PathOps> {
-        let (container, inner) = path.mount_ref().ok()?;
+    fn parent(&self, path: &EPath) -> Option<EPath> {
+        let (container, inner) = Mounter::mount_ref(path).ok()?;
         if inner.as_os_str().is_empty() {
             return None;
         }
         let parent = inner.parent().unwrap_or(Path::new(""));
-        Some(mount_path(
+        Some(Mounter::mount_path(
             container.to_path_buf(),
             parent.to_path_buf(),
             ID,
         ))
     }
 
-    fn join_dir(&self, path: &PathOps, name: &str) -> PathOps {
-        let (container, inner) = path.mount_ref().unwrap_or((Path::new(""), Path::new("")));
+    fn join_dir(&self, path: &EPath, name: &str) -> EPath {
+        let (container, inner) = Mounter::mount_ref(path).unwrap_or((Path::new(""), Path::new("")));
         let inner = if inner.as_os_str().is_empty() {
             PathBuf::from(name)
         } else {
             inner.join(name)
         };
-        mount_path(container.to_path_buf(), inner, ID)
+        Mounter::mount_path(container.to_path_buf(), inner, ID)
     }
 
-    fn display(&self, path: &PathOps) -> String {
-        let (container, inner) = path.mount_ref().unwrap_or((Path::new(""), Path::new("")));
+    fn display(&self, path: &EPath) -> String {
+        let (container, inner) = Mounter::mount_ref(path).unwrap_or((Path::new(""), Path::new("")));
         if inner.as_os_str().is_empty() {
             container.display().to_string()
         } else {
@@ -38,8 +38,8 @@ impl PathNavigation for ZipBackend {
         }
     }
 
-    fn breadcrumbs(&self, path: &PathOps) -> Vec<explorer_core::filesystem::PathBreadcrumb> {
-        let (container, inner) = match path.mount_ref() {
+    fn breadcrumbs(&self, path: &EPath) -> Vec<explorer_core::filesystem::PathBreadcrumb> {
+        let (container, inner) = match Mounter::mount_ref(path) {
             Ok(parts) => parts,
             Err(_) => return Vec::new(),
         };
@@ -51,7 +51,7 @@ impl PathNavigation for ZipBackend {
         };
 
         let mut segments = disk_breadcrumbs(container, disk_backend);
-        let mut acc = mount_path(container.to_path_buf(), PathBuf::new(), ID);
+        let mut acc = Mounter::mount_path(container.to_path_buf(), PathBuf::new(), ID);
 
         for component in inner.components() {
             if let Component::Normal(name) = component {

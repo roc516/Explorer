@@ -8,7 +8,8 @@ mod tree;
 
 pub use entry::FileEntry;
 pub use filesystem::{
-    ensure_backends_registered, path_breadcrumbs, read_directory, PathBreadcrumb, PathOps,
+    ensure_backends_registered, path_breadcrumbs, read_directory, Mounter, PathBreadcrumb, Reader,
+    EPath,
 };
 pub use i18n::{detect_system_locale, ids, Language, LanguageBundle, Locale};
 pub use model::{ExplorerModel, ModelError, OpenEntryAction, StatusInfo};

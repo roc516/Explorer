@@ -1,19 +1,11 @@
 use std::path::{Component, PathBuf};
 
-use super::ops::PathOps;
+use super::ops::EPath;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathBreadcrumb {
-    pub path: PathOps,
+    pub path: EPath,
     pub label: String,
-}
-
-pub fn join_mounted_inner(inner: &std::path::Path, name: &str) -> PathBuf {
-    if inner.as_os_str().is_empty() {
-        PathBuf::from(name)
-    } else {
-        inner.join(name)
-    }
 }
 
 pub fn disk_breadcrumbs(path: &std::path::Path, backend: &'static str) -> Vec<PathBreadcrumb> {

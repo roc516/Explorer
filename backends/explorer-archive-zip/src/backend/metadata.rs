@@ -1,12 +1,12 @@
 use std::path::{Path, PathBuf};
 
-use explorer_core::filesystem::{EntryKind, PathMetadata, PathOps};
+use explorer_core::filesystem::{EntryKind, Mounter, PathMetadata, EPath};
 
 use super::ZipBackend;
 
 impl PathMetadata for ZipBackend {
-    fn exists(&self, path: &PathOps) -> bool {
-        let (container, inner) = match path.mount_ref() {
+    fn exists(&self, path: &EPath) -> bool {
+        let (container, inner) = match Mounter::mount_ref(path) {
             Ok(parts) => parts,
             Err(_) => return false,
         };
@@ -19,8 +19,8 @@ impl PathMetadata for ZipBackend {
         PathMetadata::entry_kind(self, container, inner).is_some()
     }
 
-    fn is_file(&self, path: &PathOps) -> bool {
-        let Ok((container, inner)) = path.mount_ref() else {
+    fn is_file(&self, path: &EPath) -> bool {
+        let Ok((container, inner)) = Mounter::mount_ref(path) else {
             return false;
         };
         matches!(
@@ -29,8 +29,8 @@ impl PathMetadata for ZipBackend {
         )
     }
 
-    fn is_directory(&self, path: &PathOps) -> bool {
-        let Ok((container, inner)) = path.mount_ref() else {
+    fn is_directory(&self, path: &EPath) -> bool {
+        let Ok((container, inner)) = Mounter::mount_ref(path) else {
             return false;
         };
         if inner.as_os_str().is_empty() {
@@ -42,8 +42,8 @@ impl PathMetadata for ZipBackend {
         )
     }
 
-    fn file_name(&self, path: &PathOps) -> String {
-        path.mount_ref()
+    fn file_name(&self, path: &EPath) -> String {
+        Mounter::mount_ref(path)
             .ok()
             .and_then(|(_, inner)| {
                 inner
@@ -53,8 +53,8 @@ impl PathMetadata for ZipBackend {
             .unwrap_or_default()
     }
 
-    fn extension(&self, path: &PathOps) -> Option<String> {
-        path.mount_ref()
+    fn extension(&self, path: &EPath) -> Option<String> {
+        Mounter::mount_ref(path)
             .ok()
             .and_then(|(_, inner)| {
                 inner
@@ -64,8 +64,8 @@ impl PathMetadata for ZipBackend {
             })
     }
 
-    fn preview_path(&self, path: &PathOps) -> PathBuf {
-        let (container, inner) = path.mount_ref().unwrap_or((Path::new(""), Path::new("")));
+    fn preview_path(&self, path: &EPath) -> PathBuf {
+        let (container, inner) = Mounter::mount_ref(path).unwrap_or((Path::new(""), Path::new("")));
         container.join(inner)
     }
 

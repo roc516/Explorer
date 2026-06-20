@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use explorer_core::{
-    detect_system_locale, ids, PathOps, ExplorerModel, Language, LanguageBundle,
+    detect_system_locale, ids, EPath, ExplorerModel, Language, LanguageBundle,
     Locale,
 };
 use iced::keyboard;
@@ -340,7 +340,7 @@ impl ExplorerWindow {
         }
     }
 
-    fn load_directory(&self, path: PathOps) -> Task<window_msg::Message> {
+    fn load_directory(&self, path: EPath) -> Task<window_msg::Message> {
         file_list::load_directory_task(path).map(window_msg::Message::FileList)
     }
 
@@ -414,7 +414,7 @@ impl ExplorerWindow {
         (Task::batch(tasks), None)
     }
 
-    fn open_preview(&mut self, path: PathOps) -> Task<preview::Message> {
+    fn open_preview(&mut self, path: EPath) -> Task<preview::Message> {
         let name = path.file_name();
         self.preview = Some(PreviewState::opening(path.clone(), name));
         preview_dialog::load_preview_task(path)

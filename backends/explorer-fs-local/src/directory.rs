@@ -1,9 +1,9 @@
 use std::fs;
 
-use explorer_core::filesystem::{disk_path, PathOps};
+use explorer_core::filesystem::{disk_path, EPath};
 use explorer_core::FileEntry;
 
-pub fn read_directory(backend_id: &'static str, path: &PathOps) -> Result<Vec<FileEntry>, String> {
+pub fn read_directory(backend_id: &'static str, path: &EPath) -> Result<Vec<FileEntry>, String> {
     let disk = path.disk_ref()?;
     let entries = fs::read_dir(disk).map_err(|err| err.to_string())?;
 
