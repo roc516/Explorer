@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use explorer_core::{
-    detect_system_locale, extract_entry_to_temp, ids, open_with_system, BrowsePath, ExplorerModel,
-    Language, LanguageBundle, Locale,
+    detect_system_locale, ids, PathOps, ExplorerModel, Language, LanguageBundle,
+    Locale,
 };
 use iced::keyboard;
 use iced::theme::Mode;
@@ -48,6 +48,11 @@ struct ExplorerWindow {
 
 impl App {
     pub fn boot() -> (Self, Task<Message>) {
+        explorer_core::ensure_backends_registered(|registry| {
+            explorer_fs_local::register(registry);
+            explorer_archive_zip::register(registry);
+        });
+
         let system_locale = detect_system_locale();
         let language = Language::default();
         let (_, open) = window::open(window_settings());
@@ -214,7 +219,7 @@ impl App {
         let locale = self.language.resolve(self.system_locale);
         let explorer = match launch {
             Launch::Local => ExplorerWindow::new_local(locale),
-            Launch::Archive(path) => ExplorerWindow::new_archive(path, locale),
+            Launch::Archive(path) => ExplorerWindow::new_mounted(path, locale),
         };
 
         let load_path = explorer.model.current_path.clone();
@@ -238,9 +243,9 @@ impl App {
         }
     }
 
-    fn open_archive_window(&self, archive: PathBuf) -> Task<Message> {
+    fn open_mounted_window(&self, container: PathBuf) -> Task<Message> {
         let (_, open) = window::open(window_settings());
-        open.map(move |id| Message::WindowOpened(id, Launch::Archive(archive.clone())))
+        open.map(move |id| Message::WindowOpened(id, Launch::Archive(container.clone())))
     }
 
     fn update_window(&mut self, id: window::Id, message: window_msg::Message) -> Task<Message> {
@@ -251,11 +256,11 @@ impl App {
         let task = match message {
             window_msg::Message::Explorer(message) => window.update_explorer(message),
             window_msg::Message::FileList(message) => {
-                let (task, open_archive) = window.update_file_list(message);
-                if let Some(archive) = open_archive {
+                let (task, _open_mounted) = window.update_file_list(message);
+                if let Some(container) = _open_mounted {
                     return Task::batch([
                         task.map(move |message| Message::Window(id, message)),
-                        self.open_archive_window(archive),
+                        self.open_mounted_window(container),
                     ]);
                 }
                 task
@@ -321,13 +326,13 @@ impl ExplorerWindow {
         }
     }
 
-    fn new_archive(archive: PathBuf, locale: Locale) -> Self {
-        let mut model = ExplorerModel::new_archive(archive.clone());
+    fn new_mounted(container: PathBuf, locale: Locale) -> Self {
+        let mut model = ExplorerModel::new_mounted(container.clone());
         model.set_locale(locale);
         Self {
             model,
             toolbar: ToolbarWidget::new(),
-            directory_tree: DirectoryTreeWidget::for_archive(archive),
+            directory_tree: DirectoryTreeWidget::for_mounted(container),
             file_list: FileListWidget::new(),
             status_bar: StatusBarWidget::new(),
             preview_dialog: PreviewDialogWidget::new(),
@@ -335,7 +340,7 @@ impl ExplorerWindow {
         }
     }
 
-    fn load_directory(&self, path: BrowsePath) -> Task<window_msg::Message> {
+    fn load_directory(&self, path: PathOps) -> Task<window_msg::Message> {
         file_list::load_directory_task(path).map(window_msg::Message::FileList)
     }
 
@@ -409,7 +414,7 @@ impl ExplorerWindow {
         (Task::batch(tasks), None)
     }
 
-    fn open_preview(&mut self, path: BrowsePath) -> Task<preview::Message> {
+    fn open_preview(&mut self, path: PathOps) -> Task<preview::Message> {
         let name = path.file_name();
         self.preview = Some(PreviewState::opening(path.clone(), name));
         preview_dialog::load_preview_task(path)
@@ -443,15 +448,9 @@ impl ExplorerWindow {
             }
             preview::Message::OpenExternal => {
                 if let Some(source) = self.preview.as_ref().map(|state| state.path.clone()) {
-                    let open_path = match source {
-                        BrowsePath::Local(path) => Some(path),
-                        BrowsePath::Archive { .. } => extract_entry_to_temp(&source).ok(),
-                    };
-                    if let Some(path) = open_path {
-                        if let Err(message) = open_with_system(&path) {
-                            if let Some(state) = &mut self.preview {
-                                state.error = Some(message);
-                            }
+                    if let Err(message) = source.open_with_system() {
+                        if let Some(state) = &mut self.preview {
+                            state.error = Some(message);
                         }
                     }
                 }

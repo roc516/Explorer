@@ -1257,7 +1257,9 @@ dependencies = [
 name = "explorer"
 version = "0.1.0"
 dependencies = [
+ "explorer-archive-zip",
  "explorer-core",
+ "explorer-fs-local",
  "fluent",
  "fontdue",
  "iced",
@@ -1265,11 +1267,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "explorer-archive-zip"
+version = "0.1.0"
+dependencies = [
+ "explorer-core",
+ "open",
+ "zip",
+]
+
+[[package]]
 name = "explorer-core"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "dirs",
  "encoding_rs",
  "fixed_decimal",
  "fluent",
@@ -1278,10 +1288,17 @@ dependencies = [
  "icu_locale",
  "image",
  "office_oxide",
- "open",
  "pdf-extract",
  "unic-langid",
- "zip",
+]
+
+[[package]]
+name = "explorer-fs-local"
+version = "0.1.0"
+dependencies = [
+ "dirs",
+ "explorer-core",
+ "open",
 ]
 
 [[package]]

@@ -1,15 +1,13 @@
-use std::path::PathBuf;
-
-use crate::browse_path::BrowsePath;
+use crate::filesystem::PathOps;
 
 #[derive(Debug, Clone)]
 pub struct NavigationHistory {
-    history: Vec<BrowsePath>,
+    history: Vec<PathOps>,
     history_index: usize,
 }
 
 impl NavigationHistory {
-    pub fn new(initial: BrowsePath) -> Self {
+    pub fn new(initial: PathOps) -> Self {
         Self {
             history: vec![initial],
             history_index: 0,
@@ -24,7 +22,7 @@ impl NavigationHistory {
         self.history_index + 1 < self.history.len()
     }
 
-    pub fn go_back(&mut self) -> Option<BrowsePath> {
+    pub fn go_back(&mut self) -> Option<PathOps> {
         if !self.can_go_back() {
             return None;
         }
@@ -33,7 +31,7 @@ impl NavigationHistory {
         Some(self.history[self.history_index].clone())
     }
 
-    pub fn go_forward(&mut self) -> Option<BrowsePath> {
+    pub fn go_forward(&mut self) -> Option<PathOps> {
         if !self.can_go_forward() {
             return None;
         }
@@ -42,7 +40,7 @@ impl NavigationHistory {
         Some(self.history[self.history_index].clone())
     }
 
-    pub fn push(&mut self, path: BrowsePath) {
+    pub fn push(&mut self, path: PathOps) {
         if self.history.get(self.history_index) == Some(&path) {
             return;
         }

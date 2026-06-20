@@ -1,0 +1,10 @@
+[package]
+name = "explorer-archive-zip"
+version = "0.1.0"
+edition = "2021"
+description = "ZIP archive backend for Explorer"
+
+[dependencies]
+explorer-core = { path = "../../explorer-core" }
+open = "5"
+zip = "8.6.0"

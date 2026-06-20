@@ -6,16 +6,13 @@ description = "Core file explorer logic without UI dependencies"
 
 [dependencies]
 chrono = "0.4"
-dirs = "6"
 fixed_decimal = "0.7.2"
 fluent = "0.17.0"
 fluent-bundle = "0.16.0"
 icu_decimal = { version = "2.2.0", features = ["compiled_data"] }
 icu_locale = { version = "2.2.0", features = ["compiled_data"] }
-open = "5"
 encoding_rs = "0.8"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "ico"] }
 unic-langid = { version = "0.9.6", features = ["macros"] }
 office_oxide = "0.1.2"
 pdf-extract = "0.10.0"
-zip = "8.6.0"

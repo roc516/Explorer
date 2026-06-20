@@ -1,4 +1,4 @@
-use explorer_core::{ids, path_breadcrumbs, BrowsePath, LanguageBundle};
+use explorer_core::{ids, path_breadcrumbs, PathOps, LanguageBundle};
 use iced::window as iced_window;
 use iced::widget::{button, container, mouse_area, row, scrollable, text, text_input};
 use iced::{alignment, Element, Fill, Theme};
@@ -21,7 +21,7 @@ pub enum Message {
     AddressEdited(String),
     AddressSubmit,
     AddressEditStart,
-    BreadcrumbNavigate(BrowsePath),
+    BreadcrumbNavigate(PathOps),
 }
 
 pub struct ToolbarWidget;
@@ -34,7 +34,7 @@ impl ToolbarWidget {
     pub fn view(
         &self,
         bundle: LanguageBundle,
-        current_path: &BrowsePath,
+        current_path: &PathOps,
         address_input: &str,
         address_editing: bool,
         can_go_back: bool,
@@ -129,7 +129,7 @@ impl Default for ToolbarWidget {
     }
 }
 
-fn breadcrumb_bar(current_path: &BrowsePath, window_id: iced_window::Id) -> Element<'static, AppMessage> {
+fn breadcrumb_bar(current_path: &PathOps, window_id: iced_window::Id) -> Element<'static, AppMessage> {
     let crumbs = path_breadcrumbs(current_path);
     let last_index = crumbs.len().saturating_sub(1);
     let mut items: Vec<Element<'static, AppMessage>> = Vec::new();
@@ -176,7 +176,7 @@ fn breadcrumb_bar(current_path: &BrowsePath, window_id: iced_window::Id) -> Elem
 
 fn breadcrumb_button(
     label: String,
-    path: BrowsePath,
+    path: PathOps,
     is_last: bool,
     window_id: iced_window::Id,
 ) -> Element<'static, AppMessage> {

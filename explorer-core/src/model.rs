@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 
-use crate::browse_path::{is_archive_path, BrowsePath};
 use crate::entry::FileEntry;
-use crate::fs::{default_initial_path, open_with_system, parent_path};
+use crate::filesystem::{default_initial_path, from_address_input, parent_path, PathOps};
 use crate::i18n::{ids, LanguageBundle};
 use crate::navigation::NavigationHistory;
 use crate::preview;
@@ -23,30 +22,22 @@ pub enum StatusInfo {
     Path(String),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WindowKind {
-    Local,
-    Archive,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OpenEntryAction {
-    Navigate(BrowsePath),
-    Preview(BrowsePath),
+    Navigate(PathOps),
+    Preview(PathOps),
     OpenArchive(PathBuf),
     OpenedSystem { name: String },
 }
 
 #[derive(Debug, Clone)]
 pub struct ExplorerModel {
-    pub window_kind: WindowKind,
-    pub archive_file: Option<PathBuf>,
-    pub current_path: BrowsePath,
+    pub current_path: PathOps,
     pub entries: Vec<FileEntry>,
     pub selected_index: Option<usize>,
     pub address_input: String,
     pub address_editing: bool,
-    pub reveal_path: Option<BrowsePath>,
+    pub reveal_path: Option<PathOps>,
     pub navigation: NavigationHistory,
     pub loading: bool,
     pub error: Option<ModelError>,
@@ -56,28 +47,21 @@ pub struct ExplorerModel {
 
 impl ExplorerModel {
     pub fn new_local() -> Self {
-        let initial_path = BrowsePath::local(default_initial_path());
-        Self::with_path(WindowKind::Local, None, initial_path)
+        Self::with_path(PathOps::local(default_initial_path()))
     }
 
-    pub fn new_archive(archive: PathBuf) -> Self {
+    pub fn new_mounted(container: PathBuf) -> Self {
         Self::with_path(
-            WindowKind::Archive,
-            Some(archive.clone()),
-            BrowsePath::archive_root(archive),
+            PathOps::mount_root(container).unwrap_or_else(|message| {
+                panic!("unsupported archive: {message}")
+            }),
         )
     }
 
-    fn with_path(
-        window_kind: WindowKind,
-        archive_file: Option<PathBuf>,
-        initial_path: BrowsePath,
-    ) -> Self {
+    fn with_path(initial_path: PathOps) -> Self {
         let bundle = LanguageBundle::new(crate::i18n::Locale::En);
 
         Self {
-            window_kind,
-            archive_file,
             current_path: initial_path.clone(),
             entries: Vec::new(),
             selected_index: None,
@@ -130,7 +114,7 @@ impl ExplorerModel {
         parent_path(&self.current_path).is_some()
     }
 
-    pub fn navigate(&mut self, path: BrowsePath) -> Option<BrowsePath> {
+    pub fn navigate(&mut self, path: PathOps) -> Option<PathOps> {
         if !path.exists() {
             self.error = Some(ModelError::InvalidPath);
             self.status = StatusInfo::Path(self.bundle.tr(ids::ERROR_INVALID_PATH));
@@ -150,12 +134,12 @@ impl ExplorerModel {
         Some(path)
     }
 
-    pub fn go_up(&mut self) -> Option<BrowsePath> {
+    pub fn go_up(&mut self) -> Option<PathOps> {
         let parent = parent_path(&self.current_path)?;
         self.navigate(parent)
     }
 
-    pub fn go_back(&mut self) -> Option<BrowsePath> {
+    pub fn go_back(&mut self) -> Option<PathOps> {
         let path = self.navigation.go_back()?;
         self.loading = true;
         self.error = None;
@@ -163,7 +147,7 @@ impl ExplorerModel {
         Some(path)
     }
 
-    pub fn go_forward(&mut self) -> Option<BrowsePath> {
+    pub fn go_forward(&mut self) -> Option<PathOps> {
         let path = self.navigation.go_forward()?;
         self.loading = true;
         self.error = None;
@@ -171,7 +155,7 @@ impl ExplorerModel {
         Some(path)
     }
 
-    pub fn refresh(&mut self) -> Option<BrowsePath> {
+    pub fn refresh(&mut self) -> Option<PathOps> {
         self.loading = true;
         self.error = None;
         self.status = StatusInfo::Loading;
@@ -192,12 +176,9 @@ impl ExplorerModel {
         self.address_input = self.current_path.display();
     }
 
-    pub fn submit_address(&mut self) -> Option<BrowsePath> {
+    pub fn submit_address(&mut self) -> Option<PathOps> {
         self.address_editing = false;
-        let path = BrowsePath::from_address_input(
-            &self.address_input,
-            self.archive_file.as_deref(),
-        );
+        let path = from_address_input(&self.address_input, &self.current_path);
 
         if !path.exists() {
             self.error = Some(ModelError::InvalidPath);
@@ -250,40 +231,34 @@ impl ExplorerModel {
                 .map(OpenEntryAction::Navigate);
         }
 
-        if let Some(local) = entry.path.local_file() {
-            if is_archive_path(local) {
-                return Some(OpenEntryAction::OpenArchive(local.to_path_buf()));
-            }
+        if let Some(archive) = entry.path.nested_archive_file() {
+            return Some(OpenEntryAction::OpenArchive(archive));
         }
 
-        if entry.path.is_archive_entry() || preview::is_previewable(&entry.path) {
+        if preview::is_previewable(&entry.path) {
             return Some(OpenEntryAction::Preview(entry.path.clone()));
         }
 
-        if let Some(local) = entry.path.local_file() {
-            return match open_with_system(local) {
-                Ok(()) => {
-                    self.status = StatusInfo::Opened {
-                        name: entry.name.clone(),
-                    };
-                    Some(OpenEntryAction::OpenedSystem {
-                        name: entry.name.clone(),
-                    })
-                }
-                Err(message) => {
-                    self.error = Some(ModelError::External(message));
-                    self.status = StatusInfo::LoadFailed;
-                    None
-                }
-            };
+        match entry.path.open_with_system() {
+            Ok(()) => {
+                self.status = StatusInfo::Opened {
+                    name: entry.name.clone(),
+                };
+                Some(OpenEntryAction::OpenedSystem {
+                    name: entry.name.clone(),
+                })
+            }
+            Err(message) => {
+                self.error = Some(ModelError::External(message));
+                self.status = StatusInfo::LoadFailed;
+                None
+            }
         }
-
-        None
     }
 
     pub fn on_directory_loaded(
         &mut self,
-        result: Result<(BrowsePath, Vec<FileEntry>), String>,
+        result: Result<(PathOps, Vec<FileEntry>), String>,
     ) {
         self.loading = false;
         self.address_editing = false;

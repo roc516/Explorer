@@ -1,0 +1,107 @@
+mod archive;
+mod bootstrap;
+mod identity;
+mod io;
+mod kinds;
+mod metadata;
+mod navigation;
+
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+
+pub use archive::ArchiveMount;
+pub use bootstrap::BackendBootstrap;
+pub use identity::BackendIdentity;
+pub use io::FsIo;
+pub use kinds::EntryKind;
+pub use metadata::PathMetadata;
+pub use navigation::PathNavigation;
+
+pub trait FsBackend:
+    BackendIdentity
+    + BackendBootstrap
+    + PathNavigation
+    + PathMetadata
+    + FsIo
+    + ArchiveMount
+    + Send
+    + Sync
+{
+}
+
+pub struct FsRegistry {
+    backends: Vec<Box<dyn FsBackend>>,
+    disk_backend: Option<&'static str>,
+}
+
+impl FsRegistry {
+    pub fn new() -> Self {
+        Self {
+            backends: Vec::new(),
+            disk_backend: None,
+        }
+    }
+
+    pub fn register(&mut self, backend: Box<dyn FsBackend>) {
+        if backend.is_disk_backend() {
+            self.disk_backend = Some(backend.id());
+        }
+        self.backends.push(backend);
+    }
+
+    pub fn get(&self, id: &str) -> Option<&dyn FsBackend> {
+        self.backends
+            .iter()
+            .find(|backend| backend.id() == id)
+            .map(|backend| backend.as_ref())
+    }
+
+    pub fn disk_backend(&self) -> Option<&dyn FsBackend> {
+        self.disk_backend
+            .and_then(|id| self.get(id))
+    }
+
+    pub fn find_backend(&self, path: &Path) -> Option<&dyn FsBackend> {
+        self.backends
+            .iter()
+            .find(|backend| backend.matches(path))
+            .map(|backend| backend.as_ref())
+    }
+}
+
+static REGISTRY: OnceLock<FsRegistry> = OnceLock::new();
+
+pub fn ensure_backends_registered(build: impl FnOnce(&mut FsRegistry)) {
+    let _ = REGISTRY.get_or_init(|| {
+        let mut registry = FsRegistry::new();
+        build(&mut registry);
+        registry
+    });
+}
+
+pub fn try_registry() -> Option<&'static FsRegistry> {
+    REGISTRY.get()
+}
+
+pub fn is_mounted_path(path: &Path) -> bool {
+    REGISTRY
+        .get()
+        .and_then(|registry| registry.find_backend(path))
+        .is_some()
+}
+
+pub(crate) fn list_drives() -> Vec<PathBuf> {
+    REGISTRY
+        .get()
+        .and_then(|registry| registry.disk_backend())
+        .map(|backend| backend.list_roots())
+        .unwrap_or_default()
+}
+
+pub(crate) fn default_initial_path() -> PathBuf {
+    REGISTRY
+        .get()
+        .and_then(|registry| registry.disk_backend())
+        .and_then(|backend| backend.default_initial_path())
+        .unwrap_or_else(|| PathBuf::from("C:\\"))
+}

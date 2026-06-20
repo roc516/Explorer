@@ -60,11 +60,11 @@ impl FileListWidget {
                         load_directory_task(path.clone()),
                         Some(Action::DirectoryChanged(path)),
                     ),
-                    Some(explorer_core::OpenEntryAction::OpenArchive(path)) => {
-                        (Task::none(), Some(Action::OpenArchive(path)))
-                    }
                     Some(explorer_core::OpenEntryAction::Preview(path)) => {
                         (Task::none(), Some(Action::PreviewFile(path)))
+                    }
+                    Some(explorer_core::OpenEntryAction::OpenArchive(path)) => {
+                        (Task::none(), Some(Action::OpenArchive(path)))
                     }
                     Some(explorer_core::OpenEntryAction::OpenedSystem { .. }) => {
                         (Task::none(), None)

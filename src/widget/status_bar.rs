@@ -1,4 +1,4 @@
-use explorer_core::ExplorerModel;
+use explorer_core::{ExplorerModel};
 use iced::widget::{container, row, text, Space};
 use iced::{alignment, Element, Fill, Theme};
 

@@ -1,19 +1,17 @@
 use std::collections::{BTreeSet, HashMap};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use crate::archive;
-use crate::browse_path::BrowsePath;
-use crate::fs::{list_drives};
+use crate::filesystem::{list_drives, read_directory, PathOps};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TreeNode {
     pub name: String,
-    pub path: BrowsePath,
+    pub path: PathOps,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TreeRow {
-    pub path: BrowsePath,
+    pub path: PathOps,
     pub name: String,
     pub depth: usize,
     pub expanded: bool,
@@ -24,10 +22,10 @@ pub struct TreeRow {
 
 pub struct DirectoryTree {
     roots: Vec<TreeNode>,
-    expanded: BTreeSet<BrowsePath>,
-    children: HashMap<BrowsePath, Vec<TreeNode>>,
-    loading: BTreeSet<BrowsePath>,
-    selected: Option<BrowsePath>,
+    expanded: BTreeSet<PathOps>,
+    children: HashMap<PathOps, Vec<TreeNode>>,
+    loading: BTreeSet<PathOps>,
+    selected: Option<PathOps>,
 }
 
 impl DirectoryTree {
@@ -36,22 +34,24 @@ impl DirectoryTree {
             .into_iter()
             .map(|path| TreeNode {
                 name: path.display().to_string(),
-                path: BrowsePath::local(path),
+                path: PathOps::local(path),
             })
             .collect();
 
         Self::with_roots(roots)
     }
 
-    pub fn for_archive(archive: PathBuf) -> Self {
-        let name = archive
+    pub fn for_mounted(container: PathBuf) -> Self {
+        let name = container
             .file_name()
             .map(|value| value.to_string_lossy().into_owned())
-            .unwrap_or_else(|| archive.display().to_string());
+            .unwrap_or_else(|| container.display().to_string());
 
         Self::with_roots(vec![TreeNode {
             name,
-            path: BrowsePath::archive_root(archive),
+            path: PathOps::mount_root(container).unwrap_or_else(|message| {
+                panic!("unsupported archive: {message}")
+            }),
         }])
     }
 
@@ -71,7 +71,7 @@ impl DirectoryTree {
         rows
     }
 
-    pub fn toggle(&mut self, path: BrowsePath) -> Option<BrowsePath> {
+    pub fn toggle(&mut self, path: PathOps) -> Option<PathOps> {
         if self.expanded.contains(&path) {
             self.expanded.remove(&path);
             return None;
@@ -86,13 +86,13 @@ impl DirectoryTree {
         }
     }
 
-    pub fn select(&mut self, path: BrowsePath) {
+    pub fn select(&mut self, path: PathOps) {
         self.selected = Some(path);
     }
 
     pub fn on_children_loaded(
         &mut self,
-        path: BrowsePath,
+        path: PathOps,
         result: Result<Vec<TreeNode>, String>,
     ) {
         self.loading.remove(&path);
@@ -107,7 +107,7 @@ impl DirectoryTree {
         }
     }
 
-    pub fn sync_selection(&mut self, current: &BrowsePath) -> Vec<BrowsePath> {
+    pub fn sync_selection(&mut self, current: &PathOps) -> Vec<PathOps> {
         self.selected = Some(current.clone());
 
         let mut pending = Vec::new();
@@ -142,7 +142,7 @@ impl DirectoryTree {
         }
     }
 
-    fn is_expandable(&self, path: &BrowsePath) -> bool {
+    fn is_expandable(&self, path: &PathOps) -> bool {
         if self.loading.contains(path) || self.expanded.contains(path) {
             return true;
         }
@@ -154,8 +154,8 @@ impl DirectoryTree {
     }
 }
 
-pub fn load_tree_children(path: &BrowsePath) -> Result<Vec<TreeNode>, String> {
-    Ok(archive::read_directory(path)?
+pub fn load_tree_children(path: &PathOps) -> Result<Vec<TreeNode>, String> {
+    Ok(read_directory(path)?
         .into_iter()
         .filter(|entry| entry.is_dir)
         .map(|entry| TreeNode {
@@ -165,7 +165,7 @@ pub fn load_tree_children(path: &BrowsePath) -> Result<Vec<TreeNode>, String> {
         .collect())
 }
 
-fn ancestors_and_self(path: &BrowsePath) -> Vec<BrowsePath> {
+fn ancestors_and_self(path: &PathOps) -> Vec<PathOps> {
     let mut chain = Vec::new();
     let mut current = Some(path.clone());
 

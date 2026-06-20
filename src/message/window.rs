@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::message::{preview, input};
+use crate::message::{input, preview};
 use crate::widget::{directory_tree, file_list, toolbar};
 
 #[derive(Debug, Clone)]

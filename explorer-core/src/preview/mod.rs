@@ -5,12 +5,10 @@ mod ppt_preview;
 mod text_preview;
 mod word_preview;
 
-use std::fs::{self, File};
 use std::io::Read;
 use std::path::PathBuf;
 
-use crate::archive;
-use crate::browse_path::BrowsePath;
+use crate::filesystem::PathOps;
 
 pub use image_preview::ImagePreview;
 pub use pdf_preview::PdfPreview;
@@ -36,25 +34,12 @@ pub struct PreviewFile {
     pub kind: PreviewKind,
 }
 
-pub fn load_preview(path: &BrowsePath) -> Result<PreviewFile, String> {
-    match path {
-        BrowsePath::Local(local) => {
-            let metadata = fs::metadata(local).map_err(|err| err.to_string())?;
-            if metadata.is_dir() {
-                return Err("preview-not-file".to_string());
-            }
-
-            let mut file = File::open(local).map_err(|err| err.to_string())?;
-            read_preview_file(path, &mut file, metadata.len())
-        }
-        BrowsePath::Archive { .. } => archive::with_entry_reader(path, |reader, size| {
-            read_preview_file(path, reader, size)
-        }),
-    }
+pub fn load_preview(path: &PathOps) -> Result<PreviewFile, String> {
+    path.read_file(|reader, size| read_preview_file(path, reader, size))
 }
 
 fn read_preview_file(
-    path: &BrowsePath,
+    path: &PathOps,
     reader: &mut dyn Read,
     size: u64,
 ) -> Result<PreviewFile, String> {
@@ -99,7 +84,7 @@ pub fn is_previewable_extension(ext: &str) -> bool {
         || pdf_preview::is_extension(ext)
 }
 
-pub fn is_previewable(path: &BrowsePath) -> bool {
+pub fn is_previewable(path: &PathOps) -> bool {
     path.extension()
         .as_deref()
         .is_some_and(is_previewable_extension)
