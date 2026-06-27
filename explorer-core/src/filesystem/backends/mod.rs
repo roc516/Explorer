@@ -4,6 +4,7 @@ mod identity;
 mod io;
 mod kinds;
 mod metadata;
+mod mount;
 mod navigation;
 
 use std::path::{Path, PathBuf};
@@ -15,7 +16,10 @@ pub use identity::BackendIdentity;
 pub use io::FsIo;
 pub use kinds::EntryKind;
 pub use metadata::PathMetadata;
+pub use mount::MountSession;
 pub use navigation::PathNavigation;
+
+pub(crate) use mount::{ensure_session, get_session, remove_session};
 
 pub trait FsBackend:
     BackendIdentity
@@ -90,7 +94,7 @@ pub fn is_mounted_path(path: &Path) -> bool {
         .is_some()
 }
 
-pub(crate) fn list_drives() -> Vec<PathBuf> {
+pub(crate) fn list_drives() -> Vec<crate::filesystem::Volume> {
     REGISTRY
         .get()
         .and_then(|registry| registry.disk_backend())

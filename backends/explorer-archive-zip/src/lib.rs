@@ -1,6 +1,6 @@
-mod archive;
 mod backend;
 mod path;
+mod session;
 
 pub use backend::{EXTENSIONS, ID};
 

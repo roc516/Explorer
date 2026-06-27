@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 
-use crate::filesystem::{list_drives, Reader, Mounter, EPath};
+use crate::filesystem::{list_drives, Reader, Mounter, EPath, Volume};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TreeNode {
@@ -32,9 +32,9 @@ impl DirectoryTree {
     pub fn new() -> Self {
         let roots = list_drives()
             .into_iter()
-            .map(|path| TreeNode {
-                name: path.display().to_string(),
-                path: EPath::local(path),
+            .map(|volume: Volume| TreeNode {
+                name: volume.label,
+                path: EPath::local(volume.path),
             })
             .collect();
 
