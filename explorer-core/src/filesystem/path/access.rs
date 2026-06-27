@@ -4,6 +4,8 @@ use crate::filesystem::backends::FsBackend;
 
 use super::builders::PathBreadcrumb;
 use super::epath::EPath;
+use super::mounter::Mounter;
+use crate::filesystem::EntryKind;
 
 impl EPath {
     pub fn parent(&self) -> Option<EPath> {
@@ -21,21 +23,35 @@ impl EPath {
     }
 
     pub fn is_file(&self) -> bool {
-        with_backend_or_false(self, |backend| backend.is_file(self))
+        if let Ok(disk) = self.disk_ref() {
+            return disk.is_file();
+        }
+        let Ok(backend) = self.resolve() else { return false };
+        let Ok((container, inner)) = Mounter::mount_ref(self) else { return false };
+        matches!(backend.entry_kind(container, inner), Some(EntryKind::File))
     }
 
     pub fn is_directory(&self) -> bool {
-        with_backend_or_false(self, |backend| backend.is_directory(self))
+        if let Ok(disk) = self.disk_ref() {
+            return disk.is_dir();
+        }
+        let Ok(backend) = self.resolve() else { return false };
+        let Ok((container, inner)) = Mounter::mount_ref(self) else { return false };
+        matches!(backend.entry_kind(container, inner), Some(EntryKind::Directory))
     }
 
     pub fn file_name(&self) -> String {
-        with_backend_or(self, |backend| backend.file_name(self))
+        self.path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default()
     }
 
     pub fn extension(&self) -> Option<String> {
-        self.resolve()
-            .ok()
-            .and_then(|backend| backend.extension(self))
+        self.path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(str::to_ascii_lowercase)
     }
 
     pub fn preview_path(&self) -> PathBuf {

@@ -9,15 +9,15 @@ use super::epath::EPath;
 pub struct Mounter;
 
 impl Mounter {
-    pub fn mount_path(container: PathBuf, inner: PathBuf, backend: &'static str) -> EPath {
+    pub fn mount_path(container: PathBuf, path: PathBuf, backend: &'static str) -> EPath {
         EPath {
             backend,
             root: container,
-            inner,
+            path,
         }
     }
 
-    pub fn join_mounted_inner(inner: &std::path::Path, name: &str) -> PathBuf {
+    pub fn join_mounted_path(inner: &std::path::Path, name: &str) -> PathBuf {
         if inner.as_os_str().is_empty() {
             PathBuf::from(name)
         } else {
@@ -58,7 +58,7 @@ impl Mounter {
         if !Self::is_mount(path) {
             return Err("not-a-mount-path".to_string());
         }
-        Ok((&path.root, &path.inner))
+        Ok((&path.root, &path.path))
     }
 
     pub(crate) fn mount_backend(path: &EPath) -> Option<&'static str> {
@@ -86,13 +86,13 @@ impl Mounter {
         })?;
         Some(Self::mount_path(
             container.to_path_buf(),
-            normalize_inner_path(inner),
+            normalize_mount_path(inner),
             backend,
         ))
     }
 }
 
-fn normalize_inner_path(value: &str) -> PathBuf {
+fn normalize_mount_path(value: &str) -> PathBuf {
     let mut result = PathBuf::new();
     for component in std::path::Path::new(value).components() {
         match component {

@@ -8,14 +8,14 @@ use super::mounter::Mounter;
 pub struct EPath {
     pub(crate) backend: &'static str,
     pub(crate) root: PathBuf,
-    pub(crate) inner: PathBuf,
+    pub(crate) path: PathBuf,
 }
 
-pub fn disk_path(path: PathBuf, backend: &'static str) -> EPath {
+pub fn disk_path(disk_path: PathBuf, backend: &'static str) -> EPath {
     EPath {
         backend,
-        root: path,
-        inner: PathBuf::new(),
+        root: PathBuf::new(),
+        path: disk_path,
     }
 }
 
@@ -36,7 +36,7 @@ impl EPath {
         if Mounter::is_mount(self) {
             return Err("not-a-disk-path".to_string());
         }
-        Ok(&self.root)
+        Ok(&self.path)
     }
 
     pub(crate) fn resolve(&self) -> Result<&dyn FsBackend, String> {

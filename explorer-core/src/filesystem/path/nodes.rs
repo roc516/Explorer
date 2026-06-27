@@ -45,7 +45,7 @@ impl Mountable for Volume {
         EPath {
             backend,
             root: self.path.clone(),
-            inner: PathBuf::new(),
+            path: PathBuf::new(),
         }
     }
 }
@@ -92,7 +92,7 @@ impl ArchiveRoot {
         EPath {
             backend: self.backend,
             root: self.container.clone(),
-            inner: PathBuf::new(),
+            path: PathBuf::new(),
         }
     }
 }

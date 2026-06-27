@@ -72,7 +72,7 @@ impl ZipMountSession {
                     name: parts[0].to_string(),
                     path: Mounter::mount_path(
                         self.container.clone(),
-                        Mounter::join_mounted_inner(inner, parts[0]),
+                        Mounter::join_mounted_path(inner, parts[0]),
                         ID,
                     ),
                     is_dir: false,
@@ -89,7 +89,7 @@ impl ZipMountSession {
             .map(|name| FileEntry {
                 path: Mounter::mount_path(
                     self.container.clone(),
-                    Mounter::join_mounted_inner(inner, &name),
+                    Mounter::join_mounted_path(inner, &name),
                     ID,
                 ),
                 name,

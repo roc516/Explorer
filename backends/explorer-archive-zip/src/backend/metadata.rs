@@ -22,63 +22,16 @@ impl PathMetadata for ZipBackend {
             .is_some()
     }
 
-    fn is_file(&self, path: &EPath) -> bool {
-        let Ok((_, inner)) = Mounter::mount_ref(path) else {
-            return false;
-        };
-        matches!(
-            zip_session(path)
-                .ok()
-                .and_then(|session| session.entry_kind(inner)),
-            Some(EntryKind::File)
-        )
-    }
-
-    fn is_directory(&self, path: &EPath) -> bool {
-        let Ok((_, inner)) = Mounter::mount_ref(path) else {
-            return false;
-        };
-        if inner.as_os_str().is_empty() {
-            return true;
-        }
-        matches!(
-            zip_session(path)
-                .ok()
-                .and_then(|session| session.entry_kind(inner)),
-            Some(EntryKind::Directory)
-        )
-    }
-
-    fn file_name(&self, path: &EPath) -> String {
-        Mounter::mount_ref(path)
-            .ok()
-            .and_then(|(_, inner)| {
-                inner
-                    .file_name()
-                    .map(|name| name.to_string_lossy().into_owned())
-            })
-            .unwrap_or_default()
-    }
-
-    fn extension(&self, path: &EPath) -> Option<String> {
-        Mounter::mount_ref(path)
-            .ok()
-            .and_then(|(_, inner)| {
-                inner
-                    .extension()
-                    .and_then(|ext| ext.to_str())
-                    .map(str::to_ascii_lowercase)
-            })
-    }
-
     fn preview_path(&self, path: &EPath) -> PathBuf {
         let (container, inner) = Mounter::mount_ref(path).unwrap_or((Path::new(""), Path::new("")));
         container.join(inner)
     }
 
     fn entry_kind(&self, container: &Path, inner: &Path) -> Option<EntryKind> {
-        zip_session_for(container)
-            .ok()
-            .and_then(|session| session.entry_kind(inner))
+        let session = zip_session_for(container).ok()?;
+        if inner.as_os_str().is_empty() {
+            return Some(EntryKind::Directory);
+        }
+        session.entry_kind(inner)
     }
 }
