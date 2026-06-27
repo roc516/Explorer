@@ -1,22 +1,12 @@
-mod archive;
 mod backend;
-mod bootstrap;
-mod identity;
-mod io;
 mod kinds;
-mod metadata;
 mod mount;
 
 use std::path::Path;
 use std::sync::OnceLock;
 
-pub use archive::ArchiveMount;
 pub use backend::FsBackend;
-pub use bootstrap::BackendBootstrap;
-pub use identity::BackendIdentity;
-pub use io::FsIo;
 pub use kinds::EntryKind;
-pub use metadata::PathMetadata;
 pub use mount::MountSession;
 
 pub(crate) use mount::{ensure_session, get_session, remove_session};

@@ -49,7 +49,7 @@ impl Mounter {
 
     pub fn unmount(path: &EPath) {
         if let Ok(backend) = path.resolve() {
-            backend.close_session(&path.root);
+            backend.close(&path.root);
             remove_session(path.backend, &path.root);
         }
     }

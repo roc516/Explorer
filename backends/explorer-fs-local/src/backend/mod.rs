@@ -1,11 +1,6 @@
-mod archive;
-mod bootstrap;
-mod identity;
-mod io;
-mod metadata;
+mod fsbackend;
 
-pub use identity::ID;
+pub use fsbackend::ID;
 
 pub struct LocalBackend;
 
-impl explorer_core::filesystem::FsBackend for LocalBackend {}

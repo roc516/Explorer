@@ -109,7 +109,7 @@ impl EPath {
         }
         let Ok(backend) = self.resolve() else { return false };
         let Ok((container, inner)) = Mounter::mount_ref(self) else { return false };
-        matches!(backend.entry_kind(container, inner), Some(EntryKind::File))
+        matches!(backend.kind(container, inner), Some(EntryKind::File))
     }
 
     pub fn is_directory(&self) -> bool {
@@ -118,7 +118,7 @@ impl EPath {
         }
         let Ok(backend) = self.resolve() else { return false };
         let Ok((container, inner)) = Mounter::mount_ref(self) else { return false };
-        matches!(backend.entry_kind(container, inner), Some(EntryKind::Directory))
+        matches!(backend.kind(container, inner), Some(EntryKind::Directory))
     }
 
     pub fn file_name(&self) -> String {
@@ -162,7 +162,7 @@ impl EPath {
             };
             let output = temp_dir.join(file_name);
             let backend = self.resolve()?;
-            std::fs::write(&output, backend.read_file_bytes(self)?)
+            std::fs::write(&output, backend.read(self)?)
                 .map_err(|err| err.to_string())?;
             output
         } else {

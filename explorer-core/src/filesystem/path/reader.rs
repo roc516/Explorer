@@ -8,7 +8,7 @@ pub struct Reader;
 
 impl Reader {
     pub fn read_directory(path: &EPath) -> Result<Vec<FileEntry>, String> {
-        path.resolve()?.read_directory(path)
+        path.resolve()?.list(path)
     }
 
     pub fn read_file<R>(
@@ -18,7 +18,7 @@ impl Reader {
         if path.is_directory() {
             return Err("not-a-file".to_string());
         }
-        let bytes = path.resolve()?.read_file_bytes(path)?;
+        let bytes = path.resolve()?.read(path)?;
         let len = bytes.len() as u64;
         f(&mut Cursor::new(bytes), len)
     }

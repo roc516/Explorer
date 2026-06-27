@@ -25,7 +25,7 @@ pub(crate) fn ensure_session(
         return Ok(session.clone());
     }
 
-    let session = backend.open_session(container)?;
+    let session = backend.open(container)?;
     guard.insert(key, session.clone());
     Ok(session)
 }
