@@ -49,8 +49,8 @@ struct ExplorerWindow {
 impl App {
     pub fn boot() -> (Self, Task<Message>) {
         explorer_core::ensure_backends_registered(|registry| {
-            explorer_fs_local::register(registry);
-            explorer_archive_zip::register(registry);
+            registry.register(Box::new(explorer_fs_local::LocalBackend));
+            registry.register(Box::new(explorer_archive_zip::ZipBackend));
         });
 
         let system_locale = detect_system_locale();

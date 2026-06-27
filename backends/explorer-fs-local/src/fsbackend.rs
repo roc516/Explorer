@@ -3,14 +3,11 @@ use std::path::PathBuf;
 
 use explorer_core::filesystem::{EPath, FsBackend, Volume};
 
-use super::LocalBackend;
 use crate::directory;
 
-pub const ID: &str = "local";
-
-impl FsBackend for LocalBackend {
+impl FsBackend for crate::LocalBackend {
     fn id(&self) -> &'static str {
-        ID
+        crate::ID
     }
 
     fn is_disk_backend(&self) -> bool {
@@ -39,7 +36,7 @@ impl FsBackend for LocalBackend {
     }
 
     fn list(&self, path: &EPath) -> Result<Vec<explorer_core::FileEntry>, String> {
-        directory::read_directory(ID, path)
+        directory::read_directory(crate::ID, path)
     }
 
     fn read(&self, path: &EPath) -> Result<Vec<u8>, String> {

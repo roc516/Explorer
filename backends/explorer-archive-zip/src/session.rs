@@ -9,7 +9,7 @@ use explorer_core::filesystem::{EntryKind, MountSession, Mounter};
 use explorer_core::FileEntry;
 use zip::ZipArchive;
 
-use crate::backend::ID;
+use crate::ID;
 use crate::path::{entry_name, strip_prefix, zip_prefix};
 
 struct ZipEntryRecord {

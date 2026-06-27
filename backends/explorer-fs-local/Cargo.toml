@@ -5,5 +5,4 @@ edition = "2021"
 description = "Local disk filesystem backend for Explorer"
 
 [dependencies]
-dirs = "6"
 explorer-core = { path = "../../explorer-core" }

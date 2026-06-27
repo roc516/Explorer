@@ -3,21 +3,17 @@ use std::sync::Arc;
 
 use explorer_core::filesystem::{EntryKind, EPath, FsBackend, MountSession, Mounter};
 
-use super::ZipBackend;
 use crate::session::{zip_session, zip_session_for, ZipMountSession};
 
-pub const ID: &str = "zip";
-pub const EXTENSIONS: &[&str] = &["zip", "jar", "apk"];
-
-impl FsBackend for ZipBackend {
+impl FsBackend for crate::ZipBackend {
     fn id(&self) -> &'static str {
-        ID
+        crate::ID
     }
 
     fn matches(&self, path: &Path) -> bool {
         path.extension()
             .and_then(|ext| ext.to_str())
-            .map(|ext| EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()))
+            .map(|ext| crate::EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()))
             .unwrap_or(false)
     }
 
