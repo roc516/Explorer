@@ -157,10 +157,12 @@ impl DirectoryTree {
 pub fn load_tree_children(path: &EPath) -> Result<Vec<TreeNode>, String> {
     Ok(Reader::read_directory(path)?
         .into_iter()
-        .filter(|entry| entry.is_dir)
-        .map(|entry| TreeNode {
-            name: entry.name,
-            path: entry.path,
+        .filter_map(|entry| match entry {
+            explorer_core::FsEntry::Dir(d) => Some(TreeNode {
+                name: d.name,
+                path: d.path,
+            }),
+            explorer_core::FsEntry::File(_) => None,
         })
         .collect())
 }

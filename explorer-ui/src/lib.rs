@@ -1,11 +1,11 @@
 mod i18n;
-mod entry_ext;
+mod entry;
 mod model;
 mod navigation;
 mod preview;
 mod tree;
 
-pub use entry_ext::FileEntryExt;
+pub use entry::FileEntry;
 pub use i18n::{detect_system_locale, ids, Language, LanguageBundle, Locale};
 pub use model::{ExplorerModel, ModelError, OpenEntryAction, StatusInfo};
 pub use navigation::NavigationHistory;

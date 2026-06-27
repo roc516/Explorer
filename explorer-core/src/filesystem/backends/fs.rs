@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::entry::FileEntry;
+use crate::entry::FsEntry;
 
 use super::EntryKind;
 
@@ -10,7 +10,7 @@ use super::EntryKind;
 /// For an archive backend (e.g. zip), the device wraps the archive file and paths are relative.
 pub trait MountedDevice: Send + Sync {
     /// List directory contents at the given path.
-    fn list(&self, path: &Path) -> Result<Vec<FileEntry>, String>;
+    fn list(&self, path: &Path) -> Result<Vec<FsEntry>, String>;
     /// Read file bytes at the given path.
     fn read(&self, path: &Path) -> Result<Vec<u8>, String>;
     /// Check if the given path exists.

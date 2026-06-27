@@ -1,5 +1,4 @@
-use explorer_core::FileEntry;
-use explorer_ui::FileEntryExt;
+use explorer_ui::FileEntry;
 use iced::widget::{container, mouse_area, row, Space};
 use iced::{alignment, Element, Fill, Length, Theme};
 use lucide_icons::Icon;

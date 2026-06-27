@@ -41,7 +41,7 @@ struct LocalFs {
 }
 
 impl MountedDevice for LocalFs {
-    fn list(&self, path: &Path) -> Result<Vec<explorer_core::FileEntry>, String> {
+    fn list(&self, path: &Path) -> Result<Vec<explorer_core::FsEntry>, String> {
         directory::read_directory(self.backend_id, path)
     }
 

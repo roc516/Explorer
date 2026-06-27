@@ -1,4 +1,5 @@
-use explorer_core::{EPath, FileEntry};
+use explorer_core::EPath;
+use explorer_ui::FileEntry;
 
 use super::columns::Column;
 

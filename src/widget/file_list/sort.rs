@@ -1,7 +1,6 @@
 use std::cmp::Ordering;
 
-use explorer_core::FileEntry;
-use explorer_ui::{ExplorerModel, FileEntryExt};
+use explorer_ui::{ExplorerModel, FileEntry};
 
 use super::columns::Column;
 

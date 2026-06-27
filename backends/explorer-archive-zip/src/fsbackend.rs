@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use explorer_core::filesystem::{EntryKind, FsBackend, MountedDevice, Mounter};
-use explorer_core::FileEntry;
+use explorer_core::{DirEntry, FileEntry as CoreFileEntry, FsEntry};
 use zip::ZipArchive;
 
 use crate::path::{entry_name, strip_prefix, zip_prefix};
@@ -48,7 +48,7 @@ impl ZipFs {
         })
     }
 
-    fn read_directory(&self, inner: &Path) -> Result<Vec<FileEntry>, String> {
+    fn read_directory(&self, inner: &Path) -> Result<Vec<FsEntry>, String> {
         let prefix = zip_prefix(inner);
         let mut directories = BTreeSet::new();
         let mut files = Vec::new();
@@ -63,42 +63,50 @@ impl ZipFs {
 
             let parts: Vec<&str> = relative.split('/').collect();
             if parts.len() == 1 {
-                files.push(FileEntry {
+                files.push(FsEntry::File(CoreFileEntry {
                     name: parts[0].to_string(),
                     path: Mounter::mount_path(
                         self.container.clone(),
                         Mounter::join_mounted_path(inner, parts[0]),
                         crate::ID,
                     ),
-                    is_dir: false,
                     size: entry.size,
                     modified: None,
-                });
+                }));
             } else {
                 directories.insert(parts[0].to_string());
             }
         }
 
-        let mut items: Vec<FileEntry> = directories
+        let mut items: Vec<FsEntry> = directories
             .into_iter()
-            .map(|name| FileEntry {
+            .map(|name| FsEntry::Dir(DirEntry {
                 path: Mounter::mount_path(
                     self.container.clone(),
                     Mounter::join_mounted_path(inner, &name),
                     crate::ID,
                 ),
                 name,
-                is_dir: true,
-                size: 0,
-                modified: None,
-            })
+            }))
             .collect();
 
         items.append(&mut files);
-        items.sort_by(|left, right| match (left.is_dir, right.is_dir) {
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
-            _ => left.name.to_lowercase().cmp(&right.name.to_lowercase()),
+        items.sort_by(|left, right| {
+            let left_is_dir = matches!(left, FsEntry::Dir(_));
+            let right_is_dir = matches!(right, FsEntry::Dir(_));
+            let left_name = match left {
+                FsEntry::Dir(d) => &d.name,
+                FsEntry::File(f) => &f.name,
+            };
+            let right_name = match right {
+                FsEntry::Dir(d) => &d.name,
+                FsEntry::File(f) => &f.name,
+            };
+            match (left_is_dir, right_is_dir) {
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => left_name.to_lowercase().cmp(&right_name.to_lowercase()),
+            }
         });
 
         Ok(items)
@@ -132,7 +140,7 @@ impl ZipFs {
 }
 
 impl MountedDevice for ZipFs {
-    fn list(&self, path: &Path) -> Result<Vec<FileEntry>, String> {
+    fn list(&self, path: &Path) -> Result<Vec<FsEntry>, String> {
         self.read_directory(path)
     }
 

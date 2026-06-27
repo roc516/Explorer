@@ -1,6 +1,6 @@
 use std::io::{Cursor, Read};
 
-use crate::entry::FileEntry;
+use crate::entry::FsEntry;
 
 use super::epath::EPath;
 use super::mounter::Mounter;
@@ -8,7 +8,7 @@ use super::mounter::Mounter;
 pub struct Reader;
 
 impl Reader {
-    pub fn read_directory(path: &EPath) -> Result<Vec<FileEntry>, String> {
+    pub fn read_directory(path: &EPath) -> Result<Vec<FsEntry>, String> {
         let device = Mounter::device(path)?;
         device.list(&path.path)
     }

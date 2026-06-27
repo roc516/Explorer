@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
-use explorer_core::FileEntry;
 use explorer_core::filesystem::EPath;
 use explorer_core::filesystem::Mounter;
 
+use crate::entry::FileEntry;
 use crate::i18n::{ids, LanguageBundle};
 use crate::navigation::NavigationHistory;
 use crate::preview;
