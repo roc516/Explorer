@@ -10,6 +10,7 @@ use iced::theme::Mode;
 use iced::widget::operation::{focus, select_all};
 use iced::widget::{column, row, rule, stack};
 use iced::window;
+use iced::window::settings::PlatformSpecific;
 use iced::{Element, Fill, Subscription, Task, Theme};
 
 use crate::message::{input, preview, settings, theme, window as window_msg, Message, Launch};
@@ -578,6 +579,11 @@ fn window_settings() -> window::Settings {
         size: iced::Size::new(WINDOW_WIDTH, WINDOW_HEIGHT),
         min_size: Some(iced::Size::new(800.0, 500.0)),
         icon: Some(crate::window_icon::app_icon()),
+        #[cfg(target_os = "linux")]
+        platform_specific: PlatformSpecific {
+            application_id: "org.explorer.app".to_string(),
+            ..Default::default()
+        },
         ..Default::default()
     }
 }

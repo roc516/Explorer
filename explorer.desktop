@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Explorer
+Comment=A Windows Explorer-like file manager built with Iced
+Exec=explorer
+Icon=org.explorer.app
+Type=Application
+StartupNotify=true
+Categories=Utility;FileManager;
+StartupWMClass=org.explorer.app
