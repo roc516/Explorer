@@ -3,7 +3,6 @@ mod bootstrap;
 mod identity;
 mod io;
 mod metadata;
-mod navigation;
 
 pub use identity::{EXTENSIONS, ID};
 

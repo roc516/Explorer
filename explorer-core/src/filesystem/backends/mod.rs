@@ -1,37 +1,25 @@
 mod archive;
+mod backend;
 mod bootstrap;
 mod identity;
 mod io;
 mod kinds;
 mod metadata;
 mod mount;
-mod navigation;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::OnceLock;
 
 pub use archive::ArchiveMount;
+pub use backend::FsBackend;
 pub use bootstrap::BackendBootstrap;
 pub use identity::BackendIdentity;
 pub use io::FsIo;
 pub use kinds::EntryKind;
 pub use metadata::PathMetadata;
 pub use mount::MountSession;
-pub use navigation::PathNavigation;
 
 pub(crate) use mount::{ensure_session, get_session, remove_session};
-
-pub trait FsBackend:
-    BackendIdentity
-    + BackendBootstrap
-    + PathNavigation
-    + PathMetadata
-    + FsIo
-    + ArchiveMount
-    + Send
-    + Sync
-{
-}
 
 pub struct FsRegistry {
     backends: Vec<Box<dyn FsBackend>>,
@@ -100,12 +88,4 @@ pub(crate) fn list_drives() -> Vec<crate::filesystem::Volume> {
         .and_then(|registry| registry.disk_backend())
         .map(|backend| backend.list_roots())
         .unwrap_or_default()
-}
-
-pub(crate) fn default_initial_path() -> PathBuf {
-    REGISTRY
-        .get()
-        .and_then(|registry| registry.disk_backend())
-        .and_then(|backend| backend.default_initial_path())
-        .unwrap_or_else(|| PathBuf::from("C:\\"))
 }

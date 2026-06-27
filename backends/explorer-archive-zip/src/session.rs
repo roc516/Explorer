@@ -162,17 +162,6 @@ impl ZipMountSession {
         None
     }
 
-    pub fn extract_for_open(&self, inner: &Path) -> Result<PathBuf, String> {
-        let temp_dir = std::env::temp_dir().join("explorer-archive-preview");
-        std::fs::create_dir_all(&temp_dir).map_err(|err| err.to_string())?;
-        let file_name = inner
-            .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "preview.bin".to_string());
-        let output = temp_dir.join(file_name);
-        std::fs::write(&output, self.read_bytes(inner)?).map_err(|err| err.to_string())?;
-        Ok(output)
-    }
 }
 
 pub fn zip_session(path: &explorer_core::filesystem::EPath) -> Result<Arc<ZipMountSession>, String> {

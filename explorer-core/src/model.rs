@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::entry::FileEntry;
-use crate::filesystem::{default_initial_path, Mounter, EPath};
+use crate::filesystem::{Mounter, EPath};
 use crate::i18n::{ids, LanguageBundle};
 use crate::navigation::NavigationHistory;
 use crate::preview;
@@ -47,7 +47,13 @@ pub struct ExplorerModel {
 
 impl ExplorerModel {
     pub fn new_local() -> Self {
-        Self::with_path(EPath::local(default_initial_path()))
+        let initial = std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| {
+                std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"))
+            });
+        Self::with_path(EPath::local(initial))
     }
 
     pub fn new_mounted(container: PathBuf) -> Self {

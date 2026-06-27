@@ -6,6 +6,7 @@ description = "Core file explorer logic without UI dependencies"
 
 [dependencies]
 chrono = "0.4"
+open = "5"
 fixed_decimal = "0.7.2"
 fluent = "0.17.0"
 fluent-bundle = "0.16.0"

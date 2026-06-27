@@ -6,7 +6,6 @@ mod text_preview;
 mod word_preview;
 
 use std::io::Read;
-use std::path::PathBuf;
 
 use crate::filesystem::{EPath, Reader};
 
@@ -28,7 +27,6 @@ pub enum PreviewKind {
 
 #[derive(Debug, Clone)]
 pub struct PreviewFile {
-    pub path: PathBuf,
     pub name: String,
     pub size: u64,
     pub kind: PreviewKind,
@@ -69,7 +67,6 @@ fn read_preview_file(
     };
 
     Ok(PreviewFile {
-        path: path.preview_path(),
         name,
         size,
         kind,

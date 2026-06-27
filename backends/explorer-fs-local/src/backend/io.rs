@@ -1,5 +1,4 @@
 use std::fs;
-use std::path::Path;
 
 use explorer_core::filesystem::{FsIo, EPath};
 
@@ -15,13 +14,5 @@ impl FsIo for LocalBackend {
     fn read_file_bytes(&self, path: &EPath) -> Result<Vec<u8>, String> {
         let disk = path.disk_ref()?;
         fs::read(disk).map_err(|err| err.to_string())
-    }
-
-    fn system_open_path(&self, path: &EPath) -> Result<std::path::PathBuf, String> {
-        Ok(path.disk_ref()?.to_path_buf())
-    }
-
-    fn open_with_system(&self, path: &Path) -> Result<(), String> {
-        open::that(path).map_err(|err| err.to_string())
     }
 }

@@ -13,13 +13,4 @@ impl FsIo for ZipBackend {
         let (_, inner) = Mounter::mount_ref(path)?;
         zip_session(path)?.read_bytes(inner)
     }
-
-    fn system_open_path(&self, path: &EPath) -> Result<std::path::PathBuf, String> {
-        let (_, inner) = Mounter::mount_ref(path)?;
-        zip_session(path)?.extract_for_open(inner)
-    }
-
-    fn open_with_system(&self, path: &std::path::Path) -> Result<(), String> {
-        open::that(path).map_err(|err| err.to_string())
-    }
 }

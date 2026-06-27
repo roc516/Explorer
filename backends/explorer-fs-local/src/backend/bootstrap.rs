@@ -21,12 +21,4 @@ impl BackendBootstrap for LocalBackend {
             vec![Volume::new(PathBuf::from("/"), "/".to_string())]
         }
     }
-
-    fn default_initial_path(&self) -> Option<PathBuf> {
-        Some(
-            dirs::document_dir()
-                .or_else(dirs::home_dir)
-                .unwrap_or_else(|| PathBuf::from("C:\\")),
-        )
-    }
 }

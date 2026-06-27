@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use explorer_core::filesystem::{EntryKind, Mounter, PathMetadata, EPath};
 
@@ -20,11 +20,6 @@ impl PathMetadata for ZipBackend {
             .ok()
             .and_then(|session| session.entry_kind(inner))
             .is_some()
-    }
-
-    fn preview_path(&self, path: &EPath) -> PathBuf {
-        let (container, inner) = Mounter::mount_ref(path).unwrap_or((Path::new(""), Path::new("")));
-        container.join(inner)
     }
 
     fn entry_kind(&self, container: &Path, inner: &Path) -> Option<EntryKind> {
