@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
-use explorer_core::{load_tree_children, EPath, DirectoryTree, TreeNode, TreeRow};
+use explorer_core::EPath;
+use explorer_ui::{load_tree_children, DirectoryTree, TreeNode, TreeRow};
 use iced::widget::{button, column, container, mouse_area, row, scrollable, text, Space};
 use iced::{alignment, Element, Fill, Length, Task, Theme};
 
@@ -73,9 +74,9 @@ impl DirectoryTreeWidget {
         Task::batch(pending.into_iter().map(load_children_task))
     }
 
-    pub fn view(&self, bundle: explorer_core::LanguageBundle) -> Element<'_, Message> {
+    pub fn view(&self, bundle: explorer_ui::LanguageBundle) -> Element<'_, Message> {
         let rows = self.state.rows();
-        let no_locations = bundle.tr(explorer_core::ids::TREE_NO_LOCATIONS);
+        let no_locations = bundle.tr(explorer_ui::ids::TREE_NO_LOCATIONS);
         let content: Element<'_, Message> = if rows.is_empty() {
             column![container(text(no_locations).size(13).style(empty_hint)).padding([
                 SPACE_LG, PAGE_PADDING_H

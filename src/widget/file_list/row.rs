@@ -1,4 +1,5 @@
 use explorer_core::FileEntry;
+use explorer_ui::FileEntryExt;
 use iced::widget::{container, mouse_area, row, Space};
 use iced::{alignment, Element, Fill, Length, Theme};
 use lucide_icons::Icon;
@@ -14,7 +15,7 @@ pub(crate) fn file_row<'a>(
     index: usize,
     entry: &'a FileEntry,
     selected: bool,
-    bundle: &explorer_core::LanguageBundle,
+    bundle: &explorer_ui::LanguageBundle,
     widths: &ColumnWidths,
 ) -> Element<'a, Message> {
     let modified = entry.modified_label(bundle);

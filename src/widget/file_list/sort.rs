@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 
-use explorer_core::{ExplorerModel, FileEntry};
+use explorer_core::FileEntry;
+use explorer_ui::{ExplorerModel, FileEntryExt};
 
 use super::columns::Column;
 
@@ -50,7 +51,7 @@ fn compare_entries(
     left: &FileEntry,
     right: &FileEntry,
     sort: SortState,
-    bundle: &explorer_core::LanguageBundle,
+    bundle: &explorer_ui::LanguageBundle,
 ) -> Ordering {
     let folder_order = match (left.is_dir, right.is_dir) {
         (true, false) => Ordering::Less,

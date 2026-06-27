@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "explorer-core",
+    "explorer-ui",
     "backends/explorer-fs-local",
     "backends/explorer-archive-zip",
 ]
@@ -14,6 +15,7 @@ description = "A Windows Explorer-like file manager built with Iced"
 
 [dependencies]
 explorer-core = { path = "explorer-core" }
+explorer-ui = { path = "explorer-ui" }
 explorer-fs-local = { path = "backends/explorer-fs-local" }
 explorer-archive-zip = { path = "backends/explorer-archive-zip" }
 fluent = "0.17"

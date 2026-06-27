@@ -1,4 +1,5 @@
-use explorer_core::{ids, EPath, LanguageBundle};
+use explorer_core::EPath;
+use explorer_ui::{ids, LanguageBundle};
 use iced::window as iced_window;
 use iced::widget::{button, container, mouse_area, row, scrollable, text, text_input};
 use iced::{alignment, Element, Fill, Theme};

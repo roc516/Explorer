@@ -1,4 +1,4 @@
-use explorer_core::{ids, ImagePreview, LanguageBundle, PreviewFile, PreviewKind};
+use explorer_ui::{ids, ImagePreview, LanguageBundle, PreviewFile, PreviewKind};
 use iced::mouse;
 use iced::widget::{button, container, image, mouse_area, row, scrollable, text, Space};
 use iced::widget::scrollable::Direction;

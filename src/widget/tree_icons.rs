@@ -57,7 +57,7 @@ fn centered_icon<'a, Message: 'a>(
         .into()
 }
 
-pub fn folder_kind(row: &explorer_core::TreeRow) -> FolderKind {
+pub fn folder_kind(row: &explorer_ui::TreeRow) -> FolderKind {
     if row.depth == 0 {
         FolderKind::Drive
     } else if row.expanded && row.expandable {

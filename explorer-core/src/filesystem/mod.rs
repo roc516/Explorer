@@ -10,4 +10,4 @@ pub use path::{
     Volume,
 };
 
-pub(crate) use backends::list_drives;
+pub use backends::list_drives;

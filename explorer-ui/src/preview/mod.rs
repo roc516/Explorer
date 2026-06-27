@@ -7,7 +7,8 @@ mod word_preview;
 
 use std::io::Read;
 
-use crate::filesystem::{EPath, Reader};
+use explorer_core::filesystem::EPath;
+use explorer_core::filesystem::Reader;
 
 pub use image_preview::ImagePreview;
 pub use pdf_preview::PdfPreview;

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use explorer_core::{ids, Language, LanguageBundle};
+use explorer_ui::{ids, Language, LanguageBundle};
 use iced::widget::{button, column, container, mouse_area, pick_list, row, rule, text, Space};
 use iced::{alignment, Element, Fill, Length, Theme};
 use lucide_icons::Icon;
@@ -14,7 +14,7 @@ use crate::widget::lucide_icon;
 use crate::widget::style::{dialog_container, dialog_divider, icon_button, pick_list_style};
 
 pub mod locale {
-    use explorer_core::Language;
+        use explorer_ui::Language;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum Message {

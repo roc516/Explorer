@@ -2,7 +2,8 @@ mod document;
 mod image;
 mod text;
 
-use explorer_core::{ids, EPath, LanguageBundle, PreviewFile, PreviewKind};
+use explorer_core::EPath;
+use explorer_ui::{ids, LanguageBundle, PreviewFile, PreviewKind};
 use fluent::{FluentArgs, FluentValue};
 use iced::widget::{
     button, column, container, mouse_area, rule, row, scrollable,
@@ -56,7 +57,7 @@ impl PreviewState {
 
 pub fn load_preview_task(path: EPath) -> Task<preview::Message> {
     Task::perform(
-        async move { explorer_core::load_preview(&path) },
+        async move { explorer_ui::load_preview(&path) },
         preview::Message::Loaded,
     )
 }

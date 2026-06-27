@@ -1,6 +1,6 @@
 use std::fmt;
 
-use explorer_core::ids;
+use explorer_ui::ids;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppTheme {
@@ -132,7 +132,7 @@ impl fmt::Display for ThemeOption {
     }
 }
 
-pub fn theme_options(bundle: explorer_core::LanguageBundle) -> Vec<ThemeOption> {
+pub fn theme_options(bundle: explorer_ui::LanguageBundle) -> Vec<ThemeOption> {
     AppTheme::OPTIONS
         .iter()
         .copied()

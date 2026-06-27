@@ -70,7 +70,7 @@ pub fn is_mounted_path(path: &Path) -> bool {
         .is_some()
 }
 
-pub(crate) fn list_drives() -> Vec<crate::filesystem::Volume> {
+pub fn list_drives() -> Vec<crate::filesystem::Volume> {
     REGISTRY
         .get()
         .and_then(|registry| registry.disk_backend())

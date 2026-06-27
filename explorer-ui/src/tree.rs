@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 
-use crate::filesystem::{list_drives, Reader, Mounter, EPath, Volume};
+use explorer_core::filesystem::{list_drives, EPath, Mounter, Reader, Volume};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TreeNode {

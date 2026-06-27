@@ -1,6 +1,6 @@
 use std::fmt;
 
-use explorer_core::{ids, LanguageBundle, PreviewFile, PreviewKind, TextEncoding, TextPreview};
+use explorer_ui::{ids, LanguageBundle, PreviewFile, PreviewKind, TextEncoding, TextPreview};
 use iced::widget::{container, pick_list, row, text, Space};
 use iced::widget::text_editor;
 use iced::{alignment, Element, Fill, Length};

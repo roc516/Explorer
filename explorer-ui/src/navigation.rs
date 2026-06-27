@@ -1,4 +1,4 @@
-use crate::filesystem::EPath;
+use explorer_core::filesystem::EPath;
 
 #[derive(Debug, Clone)]
 pub struct NavigationHistory {

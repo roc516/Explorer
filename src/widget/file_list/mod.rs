@@ -10,7 +10,7 @@ mod task;
 pub use message::{Action, Message};
 pub use task::load_directory_task;
 
-use explorer_core::{ids, ExplorerModel};
+use explorer_ui::{ids, ExplorerModel};
 use iced::event;
 use iced::widget::{column, container, rule, scrollable, text};
 use iced::{Element, Fill, Subscription, Task};
@@ -56,17 +56,17 @@ impl FileListWidget {
             Message::EntryDoubleClicked(index) => {
                 let action = model.open_entry(index);
                 let (task, file_action) = match action {
-                    Some(explorer_core::OpenEntryAction::Navigate(path)) => (
+                    Some(explorer_ui::OpenEntryAction::Navigate(path)) => (
                         load_directory_task(path.clone()),
                         Some(Action::DirectoryChanged(path)),
                     ),
-                    Some(explorer_core::OpenEntryAction::Preview(path)) => {
+                    Some(explorer_ui::OpenEntryAction::Preview(path)) => {
                         (Task::none(), Some(Action::PreviewFile(path)))
                     }
-                    Some(explorer_core::OpenEntryAction::OpenArchive(path)) => {
+                    Some(explorer_ui::OpenEntryAction::OpenArchive(path)) => {
                         (Task::none(), Some(Action::OpenArchive(path)))
                     }
-                    Some(explorer_core::OpenEntryAction::OpenedSystem { .. }) => {
+                    Some(explorer_ui::OpenEntryAction::OpenedSystem { .. }) => {
                         (Task::none(), None)
                     }
                     None => (Task::none(), None),
