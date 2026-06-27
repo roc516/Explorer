@@ -6,7 +6,7 @@ mod widget;
 mod window_icon;
 
 use app::App;
-use iced::{daemon, Size};
+use iced::{daemon};
 use lucide_icons::LUCIDE_FONT_BYTES;
 
 fn main() -> iced::Result {

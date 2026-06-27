@@ -2,8 +2,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use explorer_core::{
-    detect_system_locale, ids, EPath, ExplorerModel, Language, LanguageBundle,
-    Locale,
+    detect_system_locale, ids, EPath, ExplorerModel, Language, Locale,
 };
 use iced::keyboard;
 use iced::theme::Mode;
