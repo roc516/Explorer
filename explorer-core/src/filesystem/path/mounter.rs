@@ -1,8 +1,5 @@
 use std::path::{Component, PathBuf};
-use std::sync::Arc;
 
-use crate::filesystem::backends::{ensure_session, get_session, remove_session};
-use crate::filesystem::MountSession;
 use crate::filesystem::backends::try_registry;
 
 use super::epath::EPath;
@@ -30,28 +27,7 @@ impl Mounter {
             .ok_or("fs backends not initialized")?
             .find_backend(&container)
             .ok_or("unsupported-archive")?;
-        ensure_session(backend, &container)?;
         Ok(Self::mount_path(container, PathBuf::new(), backend.id()))
-    }
-
-    pub fn mount_root_archive(container: PathBuf) -> Result<crate::filesystem::path::nodes::ArchiveRoot, String> {
-        let backend = try_registry()
-            .ok_or("fs backends not initialized")?
-            .find_backend(&container)
-            .ok_or("unsupported-archive")?;
-        ensure_session(backend, &container)?;
-        Ok(crate::filesystem::path::nodes::ArchiveRoot::new(container, backend.id()))
-    }
-
-    pub fn session(path: &EPath) -> Option<Arc<dyn MountSession>> {
-        get_session(path.backend, &path.root)
-    }
-
-    pub fn unmount(path: &EPath) {
-        if let Ok(backend) = path.resolve() {
-            backend.close(&path.root);
-            remove_session(path.backend, &path.root);
-        }
     }
 
     pub fn mount_ref(path: &EPath) -> Result<(&std::path::Path, &std::path::Path), String> {

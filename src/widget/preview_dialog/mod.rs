@@ -22,7 +22,7 @@ use crate::widget::wheel_blocker::WheelBlocker;
 
 #[derive(Debug, Clone)]
 pub struct PreviewState {
-    pub path: EPath,
+    pub open_path: EPath,
     pub name: String,
     pub loading: bool,
     pub file: Option<PreviewFile>,
@@ -33,8 +33,8 @@ pub struct PreviewState {
 }
 
 impl PreviewState {
-    pub fn opening(path: EPath, name: String) -> Self {
-        Self { path,
+    pub fn opening(open_path: EPath, name: String) -> Self {
+        Self { open_path,
             name,
             loading: true,
             file: None,

@@ -1,5 +1,4 @@
 mod path;
-mod session;
 mod fsbackend;
 
 pub struct ZipBackend;

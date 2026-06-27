@@ -1,15 +1,11 @@
 mod backend;
 mod kinds;
-mod mount;
 
 use std::path::Path;
 use std::sync::OnceLock;
 
 pub use backend::FsBackend;
 pub use kinds::EntryKind;
-pub use mount::MountSession;
-
-pub(crate) use mount::{ensure_session, get_session, remove_session};
 
 pub struct FsRegistry {
     backends: Vec<Box<dyn FsBackend>>,

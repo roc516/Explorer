@@ -19,7 +19,6 @@ pub const FONT_SIZE_CAPTION: f32 = 12.0;
 pub const NAV_PANE_WIDTH: f32 = 280.0;
 
 pub const PAGE_PADDING_H: f32 = 16.0;
-pub const PAGE_PADDING_V: f32 = 8.0;
 
 pub const NAV_BUTTON_SIZE: f32 = 32.0;
 

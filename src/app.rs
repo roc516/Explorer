@@ -447,7 +447,7 @@ impl ExplorerWindow {
                 }
             }
             preview::Message::OpenExternal => {
-                if let Some(source) = self.preview.as_ref().map(|state| state.path.clone()) {
+                if let Some(source) = self.preview.as_ref().map(|state| state.open_path.clone()) {
                     if let Err(message) = source.open_with_system() {
                         if let Some(state) = &mut self.preview {
                             state.error = Some(message);
