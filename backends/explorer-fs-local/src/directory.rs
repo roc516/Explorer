@@ -1,11 +1,11 @@
 use std::fs;
+use std::path::Path;
 
-use explorer_core::filesystem::{disk_path, EPath};
+use explorer_core::filesystem::disk_path;
 use explorer_core::FileEntry;
 
-pub fn read_directory(backend_id: &'static str, path: &EPath) -> Result<Vec<FileEntry>, String> {
-    let disk = path.disk_ref()?;
-    let entries = fs::read_dir(disk).map_err(|err| err.to_string())?;
+pub fn read_directory(backend_id: &'static str, dir: &Path) -> Result<Vec<FileEntry>, String> {
+    let entries = fs::read_dir(dir).map_err(|err| err.to_string())?;
 
     let mut items = Vec::new();
     for entry in entries {

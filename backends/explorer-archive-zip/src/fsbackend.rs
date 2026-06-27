@@ -1,113 +1,60 @@
 use std::collections::BTreeSet;
 use std::fs::File;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
-use explorer_core::filesystem::{EntryKind, EPath, FsBackend, Mounter};
+use explorer_core::filesystem::{EntryKind, FsBackend, MountedDevice, Mounter};
 use explorer_core::FileEntry;
 use zip::ZipArchive;
 
 use crate::path::{entry_name, strip_prefix, zip_prefix};
 
-impl FsBackend for crate::ZipBackend {
-    fn id(&self) -> &'static str {
-        crate::ID
-    }
+struct ZipEntryRecord {
+    name: String,
+    size: u64,
+    index: usize,
+}
 
-    fn matches(&self, path: &Path) -> bool {
-        path.extension()
-            .and_then(|ext| ext.to_str())
-            .map(|ext| crate::EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()))
-            .unwrap_or(false)
-    }
+pub struct ZipFs {
+    container: PathBuf,
+    entries: Vec<ZipEntryRecord>,
+    archive: Mutex<ZipArchive<File>>,
+}
 
-    fn exists(&self, path: &EPath) -> bool {
-        let Ok((container, inner)) = Mounter::mount_ref(path) else {
-            return false;
-        };
-        if !container.is_file() {
-            return false;
-        }
-        if inner.as_os_str().is_empty() {
-            return true;
-        }
-
-        let file = match File::open(container) {
-            Ok(f) => f,
-            Err(_) => return false,
-        };
-        let mut archive = match ZipArchive::new(file) {
-            Ok(a) => a,
-            Err(_) => return false,
-        };
-
-        let needle = entry_name(inner);
-        let prefix = format!("{needle}/");
-
-        for i in 0..archive.len() {
-            let Ok(entry) = archive.by_index(i) else { continue };
-            let name = entry.name().replace('\\', "/");
-            if name == needle {
-                return true; // exact file match
-            }
-            if name.starts_with(&prefix) {
-                return true; // directory with children
-            }
-        }
-        false
-    }
-
-    fn kind(&self, container: &Path, inner: &Path) -> Option<EntryKind> {
-        let file = File::open(container).ok()?;
-        let mut archive = ZipArchive::new(file).ok()?;
-        let name = entry_name(inner);
-
-        if name.is_empty() {
-            // root of the archive always exists as directory
-            return if archive.len() > 0 {
-                Some(EntryKind::Directory)
-            } else {
-                None
-            };
-        }
-
-        // check for exact file match
-        for i in 0..archive.len() {
-            let Ok(entry) = archive.by_index(i) else { continue };
-            if entry.name().replace('\\', "/") == name {
-                return Some(EntryKind::File);
-            }
-        }
-
-        // check for directory (has children with this prefix)
-        let prefix = format!("{name}/");
-        for i in 0..archive.len() {
-            let Ok(entry) = archive.by_index(i) else { continue };
-            if entry.name().replace('\\', "/").starts_with(&prefix) {
-                return Some(EntryKind::Directory);
-            }
-        }
-
-        None
-    }
-
-    fn list(&self, path: &EPath) -> Result<Vec<FileEntry>, String> {
-        let (container, inner) = Mounter::mount_ref(path)?;
+impl ZipFs {
+    pub fn open(container: &Path) -> Result<Self, String> {
         let file = File::open(container).map_err(|err| err.to_string())?;
         let mut archive = ZipArchive::new(file).map_err(|err| err.to_string())?;
+        let mut entries = Vec::with_capacity(archive.len());
 
-        let prefix = zip_prefix(inner);
-        let mut directories = BTreeSet::new();
-        let mut files = Vec::new();
-
-        for i in 0..archive.len() {
-            let entry = archive.by_index(i).map_err(|err| err.to_string())?;
+        for index in 0..archive.len() {
+            let entry = archive.by_index(index).map_err(|err| err.to_string())?;
             let name = entry.name().replace('\\', "/");
             if name.ends_with('/') {
                 continue;
             }
+            entries.push(ZipEntryRecord {
+                name,
+                size: entry.size(),
+                index,
+            });
+        }
 
-            let Some(relative) = strip_prefix(&name, &prefix) else {
+        Ok(Self {
+            container: container.to_path_buf(),
+            entries,
+            archive: Mutex::new(archive),
+        })
+    }
+
+    fn read_directory(&self, inner: &Path) -> Result<Vec<FileEntry>, String> {
+        let prefix = zip_prefix(inner);
+        let mut directories = BTreeSet::new();
+        let mut files = Vec::new();
+
+        for entry in &self.entries {
+            let Some(relative) = strip_prefix(&entry.name, &prefix) else {
                 continue;
             };
             if relative.is_empty() {
@@ -119,12 +66,12 @@ impl FsBackend for crate::ZipBackend {
                 files.push(FileEntry {
                     name: parts[0].to_string(),
                     path: Mounter::mount_path(
-                        container.to_path_buf(),
+                        self.container.clone(),
                         Mounter::join_mounted_path(inner, parts[0]),
                         crate::ID,
                     ),
                     is_dir: false,
-                    size: entry.size(),
+                    size: entry.size,
                     modified: None,
                 });
             } else {
@@ -136,7 +83,7 @@ impl FsBackend for crate::ZipBackend {
             .into_iter()
             .map(|name| FileEntry {
                 path: Mounter::mount_path(
-                    container.to_path_buf(),
+                    self.container.clone(),
                     Mounter::join_mounted_path(inner, &name),
                     crate::ID,
                 ),
@@ -157,20 +104,82 @@ impl FsBackend for crate::ZipBackend {
         Ok(items)
     }
 
-    fn read(&self, path: &EPath) -> Result<Vec<u8>, String> {
-        let (container, inner) = Mounter::mount_ref(path)?;
+    fn read_bytes(&self, inner: &Path) -> Result<Vec<u8>, String> {
         if inner.as_os_str().is_empty() {
             return Err("archive-entry-required".to_string());
         }
 
-        let name = entry_name(inner);
-        let file = File::open(container).map_err(|err| err.to_string())?;
-        let mut archive = ZipArchive::new(file).map_err(|err| err.to_string())?;
-        let mut entry = archive.by_name(&name).map_err(|err| err.to_string())?;
+        let entry_name = entry_name(inner);
+        let idx = self
+            .entries
+            .iter()
+            .find(|entry| entry.name == entry_name)
+            .map(|entry| entry.index)
+            .ok_or_else(|| "archive-entry-not-found".to_string())?;
+
+        let mut archive = self
+            .archive
+            .lock()
+            .map_err(|_| "archive-lock-poisoned".to_string())?;
+        // Need to handle seeking: the Mutex<ZipArchive> is reused across reads
+        let mut entry = archive.by_index(idx).map_err(|err| err.to_string())?;
         let mut bytes = Vec::new();
         entry
             .read_to_end(&mut bytes)
             .map_err(|err| err.to_string())?;
         Ok(bytes)
+    }
+}
+
+impl MountedDevice for ZipFs {
+    fn list(&self, path: &Path) -> Result<Vec<FileEntry>, String> {
+        self.read_directory(path)
+    }
+
+    fn read(&self, path: &Path) -> Result<Vec<u8>, String> {
+        self.read_bytes(path)
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        if path.as_os_str().is_empty() {
+            return !self.entries.is_empty();
+        }
+        let needle = entry_name(path);
+        let prefix = format!("{needle}/");
+        self.entries
+            .iter()
+            .any(|entry| entry.name == needle || entry.name.starts_with(&prefix))
+    }
+
+    fn entry_kind(&self, path: &Path) -> Option<EntryKind> {
+        let name = entry_name(path);
+        if name.is_empty() {
+            return (!self.entries.is_empty()).then_some(EntryKind::Directory);
+        }
+        if self.entries.iter().any(|entry| entry.name == name) {
+            return Some(EntryKind::File);
+        }
+        let prefix = format!("{name}/");
+        self.entries
+            .iter()
+            .any(|entry| entry.name.starts_with(&prefix))
+            .then_some(EntryKind::Directory)
+    }
+}
+
+impl FsBackend for crate::ZipBackend {
+    fn id(&self) -> &'static str {
+        crate::ID
+    }
+
+    fn matches(&self, path: &Path) -> bool {
+        path.extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| crate::EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()))
+            .unwrap_or(false)
+    }
+
+    fn mount(&self, path: &Path) -> Result<Box<dyn MountedDevice>, String> {
+        ZipFs::open(path).map(|fs| Box::new(fs) as Box<dyn MountedDevice>)
     }
 }

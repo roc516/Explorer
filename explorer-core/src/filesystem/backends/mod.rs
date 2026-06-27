@@ -1,10 +1,12 @@
 mod backend;
+mod fs;
 mod kinds;
 
 use std::path::Path;
 use std::sync::OnceLock;
 
 pub use backend::FsBackend;
+pub use fs::MountedDevice;
 pub use kinds::EntryKind;
 
 pub struct FsRegistry {

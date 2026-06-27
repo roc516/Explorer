@@ -96,29 +96,30 @@ impl EPath {
     }
 
     pub fn exists(&self) -> bool {
-        if let Ok(backend) = self.resolve() {
-            backend.exists(self)
-        } else {
-            false
+        if let Ok(disk) = self.disk_ref() {
+            return disk.exists();
         }
+        Mounter::device(self)
+            .map(|device| device.exists(&self.path))
+            .unwrap_or(false)
     }
 
     pub fn is_file(&self) -> bool {
         if let Ok(disk) = self.disk_ref() {
             return disk.is_file();
         }
-        let Ok(backend) = self.resolve() else { return false };
-        let Ok((container, inner)) = Mounter::mount_ref(self) else { return false };
-        matches!(backend.kind(container, inner), Some(EntryKind::File))
+        Mounter::device(self)
+            .map(|device| matches!(device.entry_kind(&self.path), Some(EntryKind::File)))
+            .unwrap_or(false)
     }
 
     pub fn is_directory(&self) -> bool {
         if let Ok(disk) = self.disk_ref() {
             return disk.is_dir();
         }
-        let Ok(backend) = self.resolve() else { return false };
-        let Ok((container, inner)) = Mounter::mount_ref(self) else { return false };
-        matches!(backend.kind(container, inner), Some(EntryKind::Directory))
+        Mounter::device(self)
+            .map(|device| matches!(device.entry_kind(&self.path), Some(EntryKind::Directory)))
+            .unwrap_or(false)
     }
 
     pub fn file_name(&self) -> String {
@@ -161,8 +162,8 @@ impl EPath {
                 }
             };
             let output = temp_dir.join(file_name);
-            let backend = self.resolve()?;
-            std::fs::write(&output, backend.read(self)?)
+            let device = Mounter::device(self)?;
+            std::fs::write(&output, device.read(&self.path)?)
                 .map_err(|err| err.to_string())?;
             output
         } else {

@@ -1,8 +1,19 @@
+use std::collections::HashMap;
 use std::path::{Component, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock};
 
-use crate::filesystem::backends::try_registry;
+use crate::filesystem::backends::{try_registry, MountedDevice};
 
 use super::epath::EPath;
+
+type DeviceKey = (&'static str, PathBuf);
+
+static DEVICES: OnceLock<Mutex<HashMap<DeviceKey, Arc<dyn MountedDevice>>>> = OnceLock::new();
+
+fn devices() -> &'static Mutex<HashMap<DeviceKey, Arc<dyn MountedDevice>>> {
+    DEVICES.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
 pub struct Mounter;
 
 impl Mounter {
@@ -28,6 +39,41 @@ impl Mounter {
             .find_backend(&container)
             .ok_or("unsupported-archive")?;
         Ok(Self::mount_path(container, PathBuf::new(), backend.id()))
+    }
+
+    /// Get or create a mounted device for the given path's container.
+    ///
+    /// For disk paths this returns a cached disk device.
+    /// For mount paths this returns a device bound to the archive container.
+    pub fn device(path: &EPath) -> Result<Arc<dyn MountedDevice>, String> {
+        let backend = path.resolve()?;
+
+        // For disk paths, cache a single device per backend (stateless)
+        if backend.is_disk_backend() {
+            let key = (path.backend, PathBuf::new());
+            let mut guard = devices().lock().expect("devices poisoned");
+            if let Some(device) = guard.get(&key) {
+                return Ok(device.clone());
+            }
+            let device = backend.mount(std::path::Path::new(""))?;
+            let device: Arc<dyn MountedDevice> = Arc::from(device);
+            guard.insert(key, device.clone());
+            return Ok(device);
+        }
+
+        // For mount paths, cache per container
+        if path.root.as_os_str().is_empty() {
+            return backend.mount(std::path::Path::new("")).map(|d| Arc::from(d));
+        }
+        let key = (path.backend, path.root.clone());
+        let mut guard = devices().lock().expect("devices poisoned");
+        if let Some(device) = guard.get(&key) {
+            return Ok(device.clone());
+        }
+        let device = backend.mount(&path.root)?;
+        let device: Arc<dyn MountedDevice> = Arc::from(device);
+        guard.insert(key, device.clone());
+        Ok(device)
     }
 
     pub fn mount_ref(path: &EPath) -> Result<(&std::path::Path, &std::path::Path), String> {

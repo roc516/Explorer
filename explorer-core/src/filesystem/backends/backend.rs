@@ -1,33 +1,32 @@
 use std::path::Path;
 
-use crate::entry::FileEntry;
-use crate::filesystem::path::EPath;
 use crate::filesystem::Volume;
 
-use super::EntryKind;
+use super::MountedDevice;
 
 pub trait FsBackend: Send + Sync {
-    // BackendIdentity
+    /// Unique identifier for this backend.
     fn id(&self) -> &'static str;
+
+    /// Whether this backend handles the host filesystem.
     fn is_disk_backend(&self) -> bool {
         false
     }
+
+    /// Whether this backend can mount the given path.
     fn matches(&self, _path: &Path) -> bool {
         false
     }
 
-    // BackendBootstrap
+    /// List top-level volumes / roots (drives on Windows, "/" on Unix).
     fn list_roots(&self) -> Vec<Volume> {
         Vec::new()
     }
 
-    // PathMetadata
-    fn exists(&self, path: &EPath) -> bool;
-    fn kind(&self, _container: &Path, _inner: &Path) -> Option<EntryKind> {
-        None
-    }
-
-    // FsIo
-    fn list(&self, path: &EPath) -> Result<Vec<FileEntry>, String>;
-    fn read(&self, path: &EPath) -> Result<Vec<u8>, String>;
+    /// Mount the given path and return a device for accessing its contents.
+    ///
+    /// For a disk backend this returns a device that operates on absolute paths.
+    /// For an archive backend this returns a device that operates on paths relative
+    /// to the archive root.
+    fn mount(&self, path: &Path) -> Result<Box<dyn MountedDevice>, String>;
 }

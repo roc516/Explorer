@@ -3,6 +3,7 @@ mod path;
 
 pub use backends::{
     ensure_backends_registered, is_mounted_path, try_registry, EntryKind, FsBackend, FsRegistry,
+    MountedDevice,
 };
 pub use path::{
     disk_breadcrumbs, disk_path, extension_of, file_name_of, Mounter, PathBreadcrumb, Reader, EPath,
