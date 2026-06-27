@@ -1,6 +1,5 @@
 use std::path::{Path, PathBuf};
 
-use super::builders::{disk_breadcrumbs, PathBreadcrumb};
 use super::epath::{disk_path, EPath};
 use super::mounter::Mounter;
 use crate::filesystem::EntryKind;
@@ -55,44 +54,6 @@ impl EPath {
                 .map(|disk| disk.display().to_string())
                 .unwrap_or_default()
         }
-    }
-
-    pub fn breadcrumbs(&self) -> Vec<PathBreadcrumb> {
-        if Mounter::is_mount(self) {
-            self.mount_breadcrumbs()
-        } else {
-            self.disk_ref()
-                .map(|disk| disk_breadcrumbs(disk, self.backend))
-                .unwrap_or_default()
-        }
-    }
-
-    fn mount_breadcrumbs(&self) -> Vec<PathBreadcrumb> {
-        let (container, inner) = match Mounter::mount_ref(self) {
-            Ok(parts) => parts,
-            Err(_) => return Vec::new(),
-        };
-        let disk_backend = crate::filesystem::backends::try_registry()
-            .and_then(|registry| registry.disk_backend())
-            .map(|backend| backend.id());
-        let Some(disk_backend) = disk_backend else {
-            return Vec::new();
-        };
-
-        let mut segments = disk_breadcrumbs(container, disk_backend);
-        let mut acc = Mounter::mount_path(container.to_path_buf(), PathBuf::new(), self.backend);
-
-        for component in inner.components() {
-            if let std::path::Component::Normal(name) = component {
-                acc = acc.join_dir(name.to_str().unwrap_or_default());
-                segments.push(PathBreadcrumb {
-                    path: acc.clone(),
-                    label: name.to_string_lossy().into_owned(),
-                });
-            }
-        }
-
-        segments
     }
 
     pub fn exists(&self) -> bool {

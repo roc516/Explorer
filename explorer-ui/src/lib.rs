@@ -1,3 +1,4 @@
+mod crumbs;
 mod i18n;
 mod entry;
 mod model;
@@ -5,6 +6,7 @@ mod navigation;
 mod preview;
 mod tree;
 
+pub use crumbs::{breadcrumbs, PathBreadcrumb};
 pub use entry::FileEntry;
 pub use i18n::{detect_system_locale, ids, Language, LanguageBundle, Locale};
 pub use model::{ExplorerModel, ModelError, OpenEntryAction, StatusInfo};

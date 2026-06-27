@@ -32,6 +32,10 @@ impl EPath {
             .unwrap_or_else(|| Self::local(input.trim()))
     }
 
+    pub fn backend(&self) -> &'static str {
+        self.backend
+    }
+
     pub fn disk_ref(&self) -> Result<&std::path::Path, String> {
         if Mounter::is_mount(self) {
             return Err("not-a-disk-path".to_string());
