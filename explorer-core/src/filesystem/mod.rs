@@ -7,7 +7,7 @@ pub use backends::{
     MountedDevice,
 };
 pub use path::{
-    disk_path, extension_of, file_name_of, Mounter, Reader, EPath, Volume,
+    disk_path, extension_of, file_name_of, mount_entry_name, Mounter, Reader, EPath, Volume,
 };
 
 pub use backends::list_drives;

@@ -1,10 +1,9 @@
 use std::fs;
 use std::path::Path;
 
-use explorer_core::{DirEntry, FileEntry, FsEntry};
-use explorer_core::filesystem::disk_path;
+use explorer_core::{host_file_bytes, DirEntry, FileEntry, FsEntry};
 
-pub fn read_directory(backend_id: &'static str, dir: &Path) -> Result<Vec<FsEntry>, String> {
+pub fn read_directory(dir: &Path) -> Result<Vec<FsEntry>, String> {
     let entries = fs::read_dir(dir).map_err(|err| err.to_string())?;
 
     let mut items = Vec::new();
@@ -13,17 +12,21 @@ pub fn read_directory(backend_id: &'static str, dir: &Path) -> Result<Vec<FsEntr
         let metadata = entry.metadata().map_err(|err| err.to_string())?;
         let file_type = entry.file_type().map_err(|err| err.to_string())?;
         let name = entry.file_name().to_string_lossy().into_owned();
-        let path = disk_path(entry.path(), backend_id);
+        let disk = entry.path();
 
         if file_type.is_dir() {
-            items.push(FsEntry::Dir(DirEntry { name, path }));
-        } else {
-            items.push(FsEntry::File(FileEntry {
+            items.push(FsEntry::Dir(DirEntry {
                 name,
-                path,
-                size: metadata.len(),
-                modified: metadata.modified().ok(),
+                path: disk,
             }));
+        } else {
+            items.push(FsEntry::File(FileEntry::new(
+                name,
+                disk.clone(),
+                metadata.len(),
+                metadata.modified().ok(),
+                host_file_bytes(disk),
+            )));
         }
     }
 

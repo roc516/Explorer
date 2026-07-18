@@ -159,10 +159,17 @@ pub fn load_tree_children(path: &EPath) -> Result<Vec<TreeNode>, String> {
     Ok(Reader::read_directory(path)?
         .into_iter()
         .filter_map(|entry| match entry {
-            explorer_core::FsEntry::Dir(d) => Some(TreeNode {
-                name: d.name,
-                path: d.path,
-            }),
+            explorer_core::FsEntry::Dir(d) => {
+                let child = if Mounter::is_mount(path) {
+                    Mounter::mount_path(path.root().clone(), d.path, path.backend())
+                } else {
+                    EPath::local(d.path)
+                };
+                Some(TreeNode {
+                    name: d.name,
+                    path: child,
+                })
+            }
             explorer_core::FsEntry::File(_) => None,
         })
         .collect())

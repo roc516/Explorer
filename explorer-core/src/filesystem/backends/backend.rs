@@ -2,7 +2,7 @@ use super::{BlockDevice, MountedDevice};
 
 /// A mountable filesystem backend (archives, etc.).
 ///
-/// Host folder access is handled separately by [`super::HostBackend`].
+/// Host folder access uses the same shape via [`super::HostBackend`] (path instead of block device).
 pub trait FsBackend: Send + Sync {
     /// Unique identifier for this backend.
     fn id(&self) -> &'static str;
@@ -12,8 +12,6 @@ pub trait FsBackend: Send + Sync {
         false
     }
 
-    /// Mount a block device and return a filesystem for accessing its contents.
-    ///
-    /// Paths on the returned device are relative to the archive / volume root.
+    /// Mount a block device and return a filesystem for listing entries.
     fn mount(&self, device: &BlockDevice) -> Result<Box<dyn MountedDevice>, String>;
 }

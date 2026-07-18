@@ -3,13 +3,11 @@ use std::io::{self, Read, Seek, SeekFrom};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use explorer_core::filesystem::{
-    BlockDevice, BlockIo, DeviceId, EntryKind, FsBackend, MountedDevice, Mounter,
-};
-use explorer_core::{DirEntry, FileEntry as CoreFileEntry, FsEntry};
+use explorer_core::filesystem::{BlockDevice, BlockIo, FsBackend, MountedDevice};
+use explorer_core::{DirEntry, FileBytes, FileEntry as CoreFileEntry, FsEntry};
 use zip::ZipArchive;
 
-use crate::path::{entry_name, strip_prefix, zip_prefix};
+use crate::path::{join_dir_name, strip_prefix, zip_prefix};
 
 struct ZipEntryRecord {
     name: String,
@@ -56,10 +54,31 @@ impl Seek for BlockReader {
     }
 }
 
+struct ZipFileBytes {
+    archive: Arc<Mutex<ZipArchive<BlockReader>>>,
+    index: usize,
+}
+
+impl FileBytes for ZipFileBytes {
+    fn read(&self) -> Result<Vec<u8>, String> {
+        let mut archive = self
+            .archive
+            .lock()
+            .map_err(|_| "archive-lock-poisoned".to_string())?;
+        let mut entry = archive
+            .by_index(self.index)
+            .map_err(|err| err.to_string())?;
+        let mut bytes = Vec::new();
+        entry
+            .read_to_end(&mut bytes)
+            .map_err(|err| err.to_string())?;
+        Ok(bytes)
+    }
+}
+
 pub struct ZipFs {
-    device_id: DeviceId,
     entries: Vec<ZipEntryRecord>,
-    archive: Mutex<ZipArchive<BlockReader>>,
+    archive: Arc<Mutex<ZipArchive<BlockReader>>>,
 }
 
 impl ZipFs {
@@ -82,14 +101,13 @@ impl ZipFs {
         }
 
         Ok(Self {
-            device_id: device.id().clone(),
             entries,
-            archive: Mutex::new(archive),
+            archive: Arc::new(Mutex::new(archive)),
         })
     }
 
-    fn read_directory(&self, inner: &Path) -> Result<Vec<FsEntry>, String> {
-        let prefix = zip_prefix(inner);
+    fn read_directory(&self, dir_name: &str) -> Result<Vec<FsEntry>, String> {
+        let prefix = zip_prefix(dir_name);
         let mut directories = BTreeSet::new();
         let mut files = Vec::new();
 
@@ -103,16 +121,16 @@ impl ZipFs {
 
             let parts: Vec<&str> = relative.split('/').collect();
             if parts.len() == 1 {
-                files.push(FsEntry::File(CoreFileEntry {
-                    name: parts[0].to_string(),
-                    path: Mounter::mount_path(
-                        self.device_id.clone(),
-                        Mounter::join_mounted_path(inner, parts[0]),
-                        crate::ID,
-                    ),
-                    size: entry.size,
-                    modified: None,
-                }));
+                files.push(FsEntry::File(CoreFileEntry::new(
+                    parts[0].to_string(),
+                    join_dir_name(dir_name, parts[0]),
+                    entry.size,
+                    None,
+                    Arc::new(ZipFileBytes {
+                        archive: self.archive.clone(),
+                        index: entry.index,
+                    }),
+                )));
             } else {
                 directories.insert(parts[0].to_string());
             }
@@ -122,11 +140,7 @@ impl ZipFs {
             .into_iter()
             .map(|name| {
                 FsEntry::Dir(DirEntry {
-                    path: Mounter::mount_path(
-                        self.device_id.clone(),
-                        Mounter::join_mounted_path(inner, &name),
-                        crate::ID,
-                    ),
+                    path: join_dir_name(dir_name, &name),
                     name,
                 })
             })
@@ -153,66 +167,11 @@ impl ZipFs {
 
         Ok(items)
     }
-
-    fn read_bytes(&self, inner: &Path) -> Result<Vec<u8>, String> {
-        if inner.as_os_str().is_empty() {
-            return Err("archive-entry-required".to_string());
-        }
-
-        let entry_name = entry_name(inner);
-        let idx = self
-            .entries
-            .iter()
-            .find(|entry| entry.name == entry_name)
-            .map(|entry| entry.index)
-            .ok_or_else(|| "archive-entry-not-found".to_string())?;
-
-        let mut archive = self
-            .archive
-            .lock()
-            .map_err(|_| "archive-lock-poisoned".to_string())?;
-        let mut entry = archive.by_index(idx).map_err(|err| err.to_string())?;
-        let mut bytes = Vec::new();
-        entry
-            .read_to_end(&mut bytes)
-            .map_err(|err| err.to_string())?;
-        Ok(bytes)
-    }
 }
 
 impl MountedDevice for ZipFs {
-    fn list(&self, path: &Path) -> Result<Vec<FsEntry>, String> {
-        self.read_directory(path)
-    }
-
-    fn read(&self, path: &Path) -> Result<Vec<u8>, String> {
-        self.read_bytes(path)
-    }
-
-    fn exists(&self, path: &Path) -> bool {
-        if path.as_os_str().is_empty() {
-            return !self.entries.is_empty();
-        }
-        let needle = entry_name(path);
-        let prefix = format!("{needle}/");
-        self.entries
-            .iter()
-            .any(|entry| entry.name == needle || entry.name.starts_with(&prefix))
-    }
-
-    fn entry_kind(&self, path: &Path) -> Option<EntryKind> {
-        let name = entry_name(path);
-        if name.is_empty() {
-            return (!self.entries.is_empty()).then_some(EntryKind::Directory);
-        }
-        if self.entries.iter().any(|entry| entry.name == name) {
-            return Some(EntryKind::File);
-        }
-        let prefix = format!("{name}/");
-        self.entries
-            .iter()
-            .any(|entry| entry.name.starts_with(&prefix))
-            .then_some(EntryKind::Directory)
+    fn list(&self, name: &str) -> Result<Vec<FsEntry>, String> {
+        self.read_directory(name)
     }
 }
 
@@ -230,7 +189,6 @@ fn looks_like_zip(device: &BlockDevice) -> bool {
         Ok(n) if n >= 2 => {}
         _ => return false,
     }
-    // Local file header or empty archive EOCD
     matches!(&magic[..2], b"PK")
         && (magic[2] == 0x03 || magic[2] == 0x05 || magic[2] == 0x07)
 }

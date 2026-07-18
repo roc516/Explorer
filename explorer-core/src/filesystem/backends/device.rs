@@ -1,9 +1,7 @@
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock};
-
-use super::MountedDevice;
+use std::sync::{Arc, Mutex};
 
 /// Random-access block I/O — the general block device interface.
 pub trait BlockIo: Send + Sync {
@@ -88,22 +86,12 @@ impl BlockDevice {
         })
     }
 
-    /// Build a block device from an entry inside an already-mounted filesystem.
-    pub fn from_entry(
-        parent_id: DeviceId,
-        parent: Arc<dyn MountedDevice>,
-        entry: PathBuf,
-        name: String,
-    ) -> Self {
-        let id = DeviceId::Nested {
-            parent: Box::new(parent_id),
-            entry: entry.clone(),
-        };
-        let io = NestedEntryIo::new(parent, entry);
+    /// Build a block device from in-memory bytes (e.g. a nested archive read via [`crate::entry::FileEntry`]).
+    pub fn from_bytes(id: DeviceId, name: String, data: Vec<u8>) -> Self {
         Self {
             id,
             name,
-            io: Arc::new(io),
+            io: Arc::new(BytesBlockIo { data }),
         }
     }
 
@@ -165,46 +153,23 @@ impl BlockIo for HostFileIo {
     }
 }
 
-struct NestedEntryIo {
-    parent: Arc<dyn MountedDevice>,
-    entry: PathBuf,
-    bytes: OnceLock<Result<Vec<u8>, String>>,
+struct BytesBlockIo {
+    data: Vec<u8>,
 }
 
-impl NestedEntryIo {
-    fn new(parent: Arc<dyn MountedDevice>, entry: PathBuf) -> Self {
-        Self {
-            parent,
-            entry,
-            bytes: OnceLock::new(),
-        }
-    }
-
-    fn data(&self) -> io::Result<&[u8]> {
-        let result = self
-            .bytes
-            .get_or_init(|| self.parent.read(&self.entry));
-        match result {
-            Ok(bytes) => Ok(bytes.as_slice()),
-            Err(message) => Err(io::Error::other(message.clone())),
-        }
-    }
-}
-
-impl BlockIo for NestedEntryIo {
+impl BlockIo for BytesBlockIo {
     fn read_at(&self, offset: u64, buf: &mut [u8]) -> io::Result<usize> {
-        let data = self.data()?;
-        if offset as usize >= data.len() {
+        if offset as usize >= self.data.len() {
             return Ok(0);
         }
         let start = offset as usize;
-        let end = (start + buf.len()).min(data.len());
+        let end = (start + buf.len()).min(self.data.len());
         let n = end - start;
-        buf[..n].copy_from_slice(&data[start..end]);
+        buf[..n].copy_from_slice(&self.data[start..end]);
         Ok(n)
     }
 
     fn len(&self) -> u64 {
-        self.data().map(|d| d.len() as u64).unwrap_or(0)
+        self.data.len() as u64
     }
 }

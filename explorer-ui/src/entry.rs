@@ -1,6 +1,6 @@
 use std::time::SystemTime;
 
-use explorer_core::filesystem::EPath;
+use explorer_core::filesystem::{Mounter, EPath};
 use explorer_core::FsEntry;
 
 use crate::i18n::{ids, LanguageBundle};
@@ -16,28 +16,41 @@ pub struct FileEntry {
     pub modified: Option<SystemTime>,
 }
 
-impl From<FsEntry> for FileEntry {
-    fn from(entry: FsEntry) -> Self {
+impl FileEntry {
+    /// Convert a core listing entry under `dir` into a UI entry with a full [`EPath`].
+    pub fn from_fs(entry: FsEntry, dir: &EPath) -> Self {
         match entry {
-            FsEntry::Dir(d) => Self {
-                name: d.name,
-                path: d.path,
-                is_dir: true,
-                size: 0,
-                modified: None,
-            },
-            FsEntry::File(f) => Self {
-                name: f.name,
-                path: f.path,
-                is_dir: false,
-                size: f.size,
-                modified: f.modified,
-            },
+            FsEntry::Dir(d) => {
+                let path = if Mounter::is_mount(dir) {
+                    Mounter::mount_path(dir.root().clone(), d.path, dir.backend())
+                } else {
+                    EPath::local(d.path)
+                };
+                Self {
+                    name: d.name,
+                    path,
+                    is_dir: true,
+                    size: 0,
+                    modified: None,
+                }
+            }
+            FsEntry::File(f) => {
+                let path = if Mounter::is_mount(dir) {
+                    Mounter::mount_path(dir.root().clone(), f.path, dir.backend())
+                } else {
+                    EPath::local(f.path)
+                };
+                Self {
+                    name: f.name,
+                    path,
+                    is_dir: false,
+                    size: f.size,
+                    modified: f.modified,
+                }
+            }
         }
     }
-}
 
-impl FileEntry {
     pub fn type_label(&self, bundle: &LanguageBundle) -> String {
         if self.is_dir {
             return bundle.tr(ids::ENTRY_FOLDER);

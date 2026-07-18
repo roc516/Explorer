@@ -1,16 +1,16 @@
 use std::path::Path;
 
-use crate::entry::FsEntry;
-use crate::filesystem::Volume;
+use super::MountedDevice;
 
-use super::EntryKind;
-
-/// Host folder filesystem — calls OS APIs directly, not block-device mounting.
+/// Host folder filesystem — same shape as [`super::FsBackend`], but keyed by path.
 pub trait HostBackend: Send + Sync {
     fn id(&self) -> &'static str;
-    fn list_roots(&self) -> Vec<Volume>;
-    fn list(&self, path: &Path) -> Result<Vec<FsEntry>, String>;
-    fn read(&self, path: &Path) -> Result<Vec<u8>, String>;
-    fn exists(&self, path: &Path) -> bool;
-    fn entry_kind(&self, path: &Path) -> Option<EntryKind>;
+
+    /// Whether this backend can mount the given host path.
+    ///
+    /// An empty path mounts the computer roots (volumes / drives).
+    fn matches(&self, path: &Path) -> bool;
+
+    /// Mount a host path and return a filesystem for listing entries.
+    fn mount(&self, path: &Path) -> Result<Box<dyn MountedDevice>, String>;
 }

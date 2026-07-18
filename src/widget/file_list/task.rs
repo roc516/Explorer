@@ -9,8 +9,10 @@ pub fn load_directory_task(path: EPath) -> Task<Message> {
         async move {
             Reader::read_directory(&path)
                 .map(|entries| {
-                    let entries: Vec<FileEntry> =
-                        entries.into_iter().map(FileEntry::from).collect();
+                    let entries: Vec<FileEntry> = entries
+                        .into_iter()
+                        .map(|entry| FileEntry::from_fs(entry, &path))
+                        .collect();
                     (path, entries)
                 })
         },

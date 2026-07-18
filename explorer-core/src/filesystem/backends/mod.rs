@@ -4,7 +4,7 @@ mod fs;
 mod host;
 mod kinds;
 
-use std::sync::{Arc, OnceLock};
+use std::sync::OnceLock;
 
 pub use backend::FsBackend;
 pub use device::{BlockDevice, BlockIo, DeviceId};
@@ -81,35 +81,29 @@ pub fn is_mountable(device: &BlockDevice) -> bool {
 }
 
 pub fn list_drives() -> Vec<crate::filesystem::Volume> {
-    try_host()
-        .map(|host| host.list_roots())
-        .unwrap_or_default()
-}
+    use std::path::Path;
 
-/// Adapter so host FS can be used wherever [`MountedDevice`] is expected.
-pub(crate) struct HostMountedDevice;
+    use crate::entry::FsEntry;
+    use crate::filesystem::Volume;
 
-impl MountedDevice for HostMountedDevice {
-    fn list(&self, path: &std::path::Path) -> Result<Vec<crate::entry::FsEntry>, String> {
-        host_backend().list(path)
+    let Some(host) = try_host() else {
+        return Vec::new();
+    };
+    let roots = Path::new("");
+    if !host.matches(roots) {
+        return Vec::new();
     }
-
-    fn read(&self, path: &std::path::Path) -> Result<Vec<u8>, String> {
-        host_backend().read(path)
-    }
-
-    fn exists(&self, path: &std::path::Path) -> bool {
-        host_backend().exists(path)
-    }
-
-    fn entry_kind(&self, path: &std::path::Path) -> Option<EntryKind> {
-        host_backend().entry_kind(path)
-    }
-}
-
-pub(crate) fn host_mounted() -> Arc<dyn MountedDevice> {
-    static DEVICE: OnceLock<Arc<dyn MountedDevice>> = OnceLock::new();
-    DEVICE
-        .get_or_init(|| Arc::new(HostMountedDevice) as Arc<dyn MountedDevice>)
-        .clone()
+    let Ok(device) = host.mount(roots) else {
+        return Vec::new();
+    };
+    let Ok(entries) = device.list("") else {
+        return Vec::new();
+    };
+    entries
+        .into_iter()
+        .filter_map(|entry| match entry {
+            FsEntry::Dir(dir) => Some(Volume::new(dir.path, dir.name)),
+            FsEntry::File(_) => None,
+        })
+        .collect()
 }

@@ -1,20 +1,14 @@
-use std::path::Path;
-
 use crate::entry::FsEntry;
 
-use super::EntryKind;
-
-/// A mounted filesystem device — represents a mount point that can be listed/read.
+/// A mounted filesystem — directory listing only.
 ///
-/// For a disk backend, the device wraps the whole filesystem and paths are absolute.
-/// For an archive backend (e.g. zip), the device wraps the archive file and paths are relative.
+/// To read file data, obtain a [`crate::entry::FileEntry`] from [`list`](Self::list)
+/// (or [`FileEntry::resolve`](crate::entry::FileEntry::resolve)) and call
+/// [`FileEntry::read`](crate::entry::FileEntry::read).
 pub trait MountedDevice: Send + Sync {
-    /// List directory contents at the given path.
-    fn list(&self, path: &Path) -> Result<Vec<FsEntry>, String>;
-    /// Read file bytes at the given path.
-    fn read(&self, path: &Path) -> Result<Vec<u8>, String>;
-    /// Check if the given path exists.
-    fn exists(&self, path: &Path) -> bool;
-    /// Return the entry kind (file or directory) for the given path.
-    fn entry_kind(&self, path: &Path) -> Option<EntryKind>;
+    /// List immediate children of the directory named `name`.
+    ///
+    /// `name` is relative to the mount root (e.g. `""`, `"folder"`, `"a/b"`).
+    /// It is not a host filesystem path.
+    fn list(&self, name: &str) -> Result<Vec<FsEntry>, String>;
 }

@@ -7,6 +7,6 @@ mod nodes;
 
 pub use mounter::Mounter;
 pub use epath::{disk_path, EPath};
-pub use reader::Reader;
+pub use reader::{mount_entry_name, Reader};
 pub use util::{extension_of, file_name_of};
 pub use nodes::Volume;

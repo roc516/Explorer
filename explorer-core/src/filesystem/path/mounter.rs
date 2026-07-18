@@ -2,9 +2,7 @@ use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use crate::filesystem::backends::{
-    host_mounted, try_registry, BlockDevice, DeviceId, MountedDevice,
-};
+use crate::filesystem::backends::{try_registry, BlockDevice, DeviceId, MountedDevice};
 
 use super::epath::EPath;
 
@@ -58,10 +56,10 @@ impl Mounter {
         ))
     }
 
-    /// Filesystem device for `path`: host FS for disk paths, cached mount for archives.
+    /// Cached mounted filesystem for an archive path.
     pub fn device(path: &EPath) -> Result<Arc<dyn MountedDevice>, String> {
         if !Self::is_mount(path) {
-            return Ok(host_mounted());
+            return Err("not-a-mount-path".to_string());
         }
 
         let backend = path.resolve_mount()?;
@@ -92,26 +90,27 @@ impl Mounter {
             }
             DeviceId::Host(path) => BlockDevice::open_host(path.clone()),
             DeviceId::Nested { parent, entry } => {
-                let parent_mounted = Self::mounted_by_id(parent)?;
-                let name = entry
-                    .file_name()
-                    .map(|n| n.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| entry.display().to_string());
-                Ok(BlockDevice::from_entry(
-                    (**parent).clone(),
-                    parent_mounted,
-                    entry.clone(),
-                    name,
-                ))
+                let parent_fs = Self::device_by_id(parent)?;
+                let full = path_to_mount_name(entry);
+                let (dir, child) = match full.rsplit_once('/') {
+                    Some((dir, child)) => (dir.to_string(), child.to_string()),
+                    None => (String::new(), full),
+                };
+                let file = parent_fs
+                    .list(&dir)?
+                    .into_iter()
+                    .find_map(|entry| match entry {
+                        crate::entry::FsEntry::File(file) if file.name == child => Some(file),
+                        _ => None,
+                    })
+                    .ok_or_else(|| "file-not-found".to_string())?;
+                let data = file.read()?;
+                Ok(BlockDevice::from_bytes(id.clone(), file.name, data))
             }
         }
     }
 
-    fn mounted_by_id(id: &DeviceId) -> Result<Arc<dyn MountedDevice>, String> {
-        if id.is_host_disk() {
-            return Ok(host_mounted());
-        }
-
+    fn device_by_id(id: &DeviceId) -> Result<Arc<dyn MountedDevice>, String> {
         {
             let guard = devices().lock().expect("devices poisoned");
             for ((_, cached_id), device) in guard.iter() {
@@ -189,4 +188,14 @@ fn normalize_mount_path(value: &str) -> PathBuf {
         }
     }
     result
+}
+
+fn path_to_mount_name(path: &Path) -> String {
+    path.components()
+        .filter_map(|component| match component {
+            Component::Normal(name) => Some(name.to_string_lossy().into_owned()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("/")
 }

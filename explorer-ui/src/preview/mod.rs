@@ -7,8 +7,8 @@ mod word_preview;
 
 use std::io::Read;
 
-use explorer_core::filesystem::EPath;
-use explorer_core::filesystem::Reader;
+use explorer_core::filesystem::{EPath, Reader};
+use explorer_core::FileEntry;
 
 pub use image_preview::ImagePreview;
 pub use pdf_preview::PdfPreview;
@@ -34,7 +34,8 @@ pub struct PreviewFile {
 }
 
 pub fn load_preview(path: &EPath) -> Result<PreviewFile, String> {
-    Reader::read_file(path, |reader, size| read_preview_file(path, reader, size))
+    let entry = FileEntry::resolve(path)?;
+    Reader::read_file(&entry, |reader, size| read_preview_file(path, reader, size))
 }
 
 fn read_preview_file(
