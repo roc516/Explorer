@@ -1,6 +1,4 @@
-use std::path::PathBuf;
-
-use explorer_core::EPath;
+use explorer_core::{BlockDevice, EPath};
 use explorer_ui::{load_tree_children, DirectoryTree, TreeNode, TreeRow};
 use iced::widget::{button, column, container, mouse_area, row, scrollable, text, Space};
 use iced::{alignment, Element, Fill, Length, Task, Theme};
@@ -37,8 +35,8 @@ impl DirectoryTreeWidget {
         Self::with_tree(DirectoryTree::new())
     }
 
-    pub fn for_mounted(container: PathBuf) -> Self {
-        Self::with_tree(DirectoryTree::for_mounted(container))
+    pub fn for_mounted(device: BlockDevice) -> Self {
+        Self::with_tree(DirectoryTree::for_mounted(device))
     }
 
     fn with_tree(state: DirectoryTree) -> Self {

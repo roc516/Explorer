@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use explorer_core::filesystem::BlockDevice;
 
 use crate::message::{input, preview};
 use crate::widget::{directory_tree, file_list, toolbar};
@@ -15,5 +15,5 @@ pub enum Message {
 #[derive(Debug, Clone)]
 pub enum Launch {
     Local,
-    Archive(PathBuf),
+    Archive(BlockDevice),
 }

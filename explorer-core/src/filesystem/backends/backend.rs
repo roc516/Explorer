@@ -1,32 +1,19 @@
-use std::path::Path;
+use super::{BlockDevice, MountedDevice};
 
-use crate::filesystem::Volume;
-
-use super::MountedDevice;
-
+/// A mountable filesystem backend (archives, etc.).
+///
+/// Host folder access is handled separately by [`super::HostBackend`].
 pub trait FsBackend: Send + Sync {
     /// Unique identifier for this backend.
     fn id(&self) -> &'static str;
 
-    /// Whether this backend handles the host filesystem.
-    fn is_disk_backend(&self) -> bool {
+    /// Whether this backend can mount the given block device.
+    fn matches(&self, _device: &BlockDevice) -> bool {
         false
     }
 
-    /// Whether this backend can mount the given path.
-    fn matches(&self, _path: &Path) -> bool {
-        false
-    }
-
-    /// List top-level volumes / roots (drives on Windows, "/" on Unix).
-    fn list_roots(&self) -> Vec<Volume> {
-        Vec::new()
-    }
-
-    /// Mount the given path and return a device for accessing its contents.
+    /// Mount a block device and return a filesystem for accessing its contents.
     ///
-    /// For a disk backend this returns a device that operates on absolute paths.
-    /// For an archive backend this returns a device that operates on paths relative
-    /// to the archive root.
-    fn mount(&self, path: &Path) -> Result<Box<dyn MountedDevice>, String>;
+    /// Paths on the returned device are relative to the archive / volume root.
+    fn mount(&self, device: &BlockDevice) -> Result<Box<dyn MountedDevice>, String>;
 }

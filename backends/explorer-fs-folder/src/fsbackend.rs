@@ -1,17 +1,14 @@
 use std::fs;
 use std::path::Path;
 
-use explorer_core::filesystem::{EntryKind, FsBackend, MountedDevice, Volume};
+use explorer_core::filesystem::{EntryKind, HostBackend, Volume};
+use explorer_core::FsEntry;
 
 use crate::directory;
 
-impl FsBackend for crate::LocalBackend {
+impl HostBackend for crate::FolderBackend {
     fn id(&self) -> &'static str {
         crate::ID
-    }
-
-    fn is_disk_backend(&self) -> bool {
-        true
     }
 
     fn list_roots(&self) -> Vec<Volume> {
@@ -31,18 +28,8 @@ impl FsBackend for crate::LocalBackend {
         }
     }
 
-    fn mount(&self, _path: &Path) -> Result<Box<dyn MountedDevice>, String> {
-        Ok(Box::new(LocalFs { backend_id: crate::ID }))
-    }
-}
-
-struct LocalFs {
-    backend_id: &'static str,
-}
-
-impl MountedDevice for LocalFs {
-    fn list(&self, path: &Path) -> Result<Vec<explorer_core::FsEntry>, String> {
-        directory::read_directory(self.backend_id, path)
+    fn list(&self, path: &Path) -> Result<Vec<FsEntry>, String> {
+        directory::read_directory(crate::ID, path)
     }
 
     fn read(&self, path: &Path) -> Result<Vec<u8>, String> {

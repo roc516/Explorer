@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use super::epath::{disk_path, EPath};
 use super::mounter::Mounter;
-use crate::filesystem::EntryKind;
+use crate::filesystem::backends::{is_mountable, BlockDevice, EntryKind};
 
 impl EPath {
     pub fn parent(&self) -> Option<EPath> {
@@ -13,7 +13,7 @@ impl EPath {
             }
             let parent = inner.parent().unwrap_or(Path::new(""));
             Some(Mounter::mount_path(
-                container.to_path_buf(),
+                container.clone(),
                 parent.to_path_buf(),
                 self.backend,
             ))
@@ -26,14 +26,15 @@ impl EPath {
 
     pub fn join_dir(&self, name: &str) -> EPath {
         if Mounter::is_mount(self) {
-            let (container, inner) =
-                Mounter::mount_ref(self).unwrap_or((Path::new(""), Path::new("")));
+            let Ok((container, inner)) = Mounter::mount_ref(self) else {
+                return disk_path(PathBuf::from(name), self.backend);
+            };
             let inner = if inner.as_os_str().is_empty() {
                 PathBuf::from(name)
             } else {
                 inner.join(name)
             };
-            Mounter::mount_path(container.to_path_buf(), inner, self.backend)
+            Mounter::mount_path(container.clone(), inner, self.backend)
         } else {
             let disk = self.disk_ref().unwrap_or(Path::new(""));
             disk_path(disk.join(name), self.backend)
@@ -42,10 +43,11 @@ impl EPath {
 
     pub fn display(&self) -> String {
         if Mounter::is_mount(self) {
-            let (container, inner) =
-                Mounter::mount_ref(self).unwrap_or((Path::new(""), Path::new("")));
+            let Ok((container, inner)) = Mounter::mount_ref(self) else {
+                return String::new();
+            };
             if inner.as_os_str().is_empty() {
-                container.display().to_string()
+                container.display()
             } else {
                 format!("{}\\{}", container.display(), inner.display())
             }
@@ -97,17 +99,22 @@ impl EPath {
             .map(str::to_ascii_lowercase)
     }
 
-    pub(crate) fn archive_container(&self) -> Option<&std::path::Path> {
-        Mounter::mount_ref(self).ok().map(|(container, _)| container)
-    }
-
-    pub fn nested_archive_file(&self) -> Option<PathBuf> {
-        let disk = self.disk_ref().ok()?;
-        if disk.is_file() && crate::filesystem::backends::is_mounted_path(disk) {
-            Some(disk.to_path_buf())
-        } else {
-            None
+    /// If this path is a mountable archive, build a [`BlockDevice`] for it.
+    pub fn as_mountable_device(&self) -> Option<BlockDevice> {
+        if !self.is_file() {
+            return None;
         }
+
+        let device = if Mounter::is_mount(self) {
+            let parent = Mounter::device(self).ok()?;
+            let name = self.file_name();
+            BlockDevice::from_entry(self.root.clone(), parent, self.path.clone(), name)
+        } else {
+            let disk = self.disk_ref().ok()?;
+            BlockDevice::open_host(disk.to_path_buf()).ok()?
+        };
+
+        is_mountable(&device).then_some(device)
     }
 
     pub fn open_with_system(&self) -> Result<(), String> {

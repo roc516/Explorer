@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
-use std::path::PathBuf;
 
-use explorer_core::{EPath};
+use explorer_core::{BlockDevice, EPath};
 use explorer_ui::{
     detect_system_locale, ids, ExplorerModel, Language, Locale,
 };
@@ -49,9 +48,9 @@ struct ExplorerWindow {
 
 impl App {
     pub fn boot() -> (Self, Task<Message>) {
+        explorer_core::ensure_host_registered(Box::new(explorer_fs_folder::FolderBackend));
         explorer_core::ensure_backends_registered(|registry| {
-            registry.register(Box::new(explorer_fs_local::LocalBackend));
-            registry.register(Box::new(explorer_archive_zip::ZipBackend));
+            registry.register(Box::new(explorer_fs_zip::ZipBackend));
         });
 
         let system_locale = detect_system_locale();
@@ -220,7 +219,7 @@ impl App {
         let locale = self.language.resolve(self.system_locale);
         let explorer = match launch {
             Launch::Local => ExplorerWindow::new_local(locale),
-            Launch::Archive(path) => ExplorerWindow::new_mounted(path, locale),
+            Launch::Archive(device) => ExplorerWindow::new_mounted(device, locale),
         };
 
         let load_path = explorer.model.current_path.clone();
@@ -244,9 +243,9 @@ impl App {
         }
     }
 
-    fn open_mounted_window(&self, container: PathBuf) -> Task<Message> {
+    fn open_mounted_window(&self, device: BlockDevice) -> Task<Message> {
         let (_, open) = window::open(window_settings());
-        open.map(move |id| Message::WindowOpened(id, Launch::Archive(container.clone())))
+        open.map(move |id| Message::WindowOpened(id, Launch::Archive(device.clone())))
     }
 
     fn update_window(&mut self, id: window::Id, message: window_msg::Message) -> Task<Message> {
@@ -327,13 +326,13 @@ impl ExplorerWindow {
         }
     }
 
-    fn new_mounted(container: PathBuf, locale: Locale) -> Self {
-        let mut model = ExplorerModel::new_mounted(container.clone());
+    fn new_mounted(device: BlockDevice, locale: Locale) -> Self {
+        let mut model = ExplorerModel::new_mounted(device.clone());
         model.set_locale(locale);
         Self {
             model,
             toolbar: ToolbarWidget::new(),
-            directory_tree: DirectoryTreeWidget::for_mounted(container),
+            directory_tree: DirectoryTreeWidget::for_mounted(device),
             file_list: FileListWidget::new(),
             status_bar: StatusBarWidget::new(),
             preview_dialog: PreviewDialogWidget::new(),
@@ -394,7 +393,7 @@ impl ExplorerWindow {
     fn update_file_list(
         &mut self,
         message: file_list::Message,
-    ) -> (Task<window_msg::Message>, Option<PathBuf>) {
+    ) -> (Task<window_msg::Message>, Option<BlockDevice>) {
         let (task, action) = self.file_list.update(&mut self.model, message);
         let mut tasks = vec![task.map(window_msg::Message::FileList)];
 
@@ -406,8 +405,8 @@ impl ExplorerWindow {
                 FileListAction::PreviewFile(path) => {
                     tasks.push(self.open_preview(path).map(window_msg::Message::Preview));
                 }
-                FileListAction::OpenArchive(path) => {
-                    return (Task::none(), Some(path));
+                FileListAction::OpenArchive(device) => {
+                    return (Task::none(), Some(device));
                 }
             }
         }

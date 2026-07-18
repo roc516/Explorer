@@ -1236,22 +1236,14 @@ dependencies = [
 name = "explorer"
 version = "0.1.0"
 dependencies = [
- "explorer-archive-zip",
  "explorer-core",
- "explorer-fs-local",
+ "explorer-fs-folder",
+ "explorer-fs-zip",
  "explorer-ui",
  "fluent",
  "fontdue",
  "iced",
  "lucide-icons",
-]
-
-[[package]]
-name = "explorer-archive-zip"
-version = "0.1.0"
-dependencies = [
- "explorer-core",
- "zip",
 ]
 
 [[package]]
@@ -1262,10 +1254,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "explorer-fs-local"
+name = "explorer-fs-folder"
 version = "0.1.0"
 dependencies = [
  "explorer-core",
+]
+
+[[package]]
+name = "explorer-fs-zip"
+version = "0.1.0"
+dependencies = [
+ "explorer-core",
+ "zip",
 ]
 
 [[package]]

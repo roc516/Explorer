@@ -1,12 +1,14 @@
 use std::collections::HashMap;
-use std::path::{Component, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use crate::filesystem::backends::{try_registry, MountedDevice};
+use crate::filesystem::backends::{
+    host_mounted, try_registry, BlockDevice, DeviceId, MountedDevice,
+};
 
 use super::epath::EPath;
 
-type DeviceKey = (&'static str, PathBuf);
+type DeviceKey = (&'static str, DeviceId);
 
 static DEVICES: OnceLock<Mutex<HashMap<DeviceKey, Arc<dyn MountedDevice>>>> = OnceLock::new();
 
@@ -17,15 +19,15 @@ fn devices() -> &'static Mutex<HashMap<DeviceKey, Arc<dyn MountedDevice>>> {
 pub struct Mounter;
 
 impl Mounter {
-    pub fn mount_path(container: PathBuf, path: PathBuf, backend: &'static str) -> EPath {
+    pub fn mount_path(root: DeviceId, path: PathBuf, backend: &'static str) -> EPath {
         EPath {
             backend,
-            root: container,
+            root,
             path,
         }
     }
 
-    pub fn join_mounted_path(inner: &std::path::Path, name: &str) -> PathBuf {
+    pub fn join_mounted_path(inner: &Path, name: &str) -> PathBuf {
         if inner.as_os_str().is_empty() {
             PathBuf::from(name)
         } else {
@@ -33,50 +35,108 @@ impl Mounter {
         }
     }
 
-    pub fn mount_root(container: PathBuf) -> Result<EPath, String> {
+    /// Mount a block device via a mountable backend and return the archive root path.
+    pub fn mount_root(device: BlockDevice) -> Result<EPath, String> {
         let backend = try_registry()
             .ok_or("fs backends not initialized")?
-            .find_backend(&container)
+            .find_backend(&device)
             .ok_or("unsupported-archive")?;
-        Ok(Self::mount_path(container, PathBuf::new(), backend.id()))
+        let backend_id = backend.id();
+        let key = (backend_id, device.id().clone());
+
+        let mounted = backend.mount(&device)?;
+        let mounted: Arc<dyn MountedDevice> = Arc::from(mounted);
+        devices()
+            .lock()
+            .expect("devices poisoned")
+            .insert(key, mounted);
+
+        Ok(Self::mount_path(
+            device.id().clone(),
+            PathBuf::new(),
+            backend_id,
+        ))
     }
 
-    /// Get or create a mounted device for the given path's container.
-    ///
-    /// For disk paths this returns a cached disk device.
-    /// For mount paths this returns a device bound to the archive container.
+    /// Filesystem device for `path`: host FS for disk paths, cached mount for archives.
     pub fn device(path: &EPath) -> Result<Arc<dyn MountedDevice>, String> {
-        let backend = path.resolve()?;
+        if !Self::is_mount(path) {
+            return Ok(host_mounted());
+        }
 
-        // For disk paths, cache a single device per backend (stateless)
-        if backend.is_disk_backend() {
-            let key = (path.backend, PathBuf::new());
-            let mut guard = devices().lock().expect("devices poisoned");
+        let backend = path.resolve_mount()?;
+        let key = (path.backend, path.root.clone());
+
+        {
+            let guard = devices().lock().expect("devices poisoned");
             if let Some(device) = guard.get(&key) {
                 return Ok(device.clone());
             }
-            let device = backend.mount(std::path::Path::new(""))?;
-            let device: Arc<dyn MountedDevice> = Arc::from(device);
-            guard.insert(key, device.clone());
-            return Ok(device);
         }
 
-        // For mount paths, cache per container
-        if path.root.as_os_str().is_empty() {
-            return backend.mount(std::path::Path::new("")).map(|d| Arc::from(d));
-        }
-        let key = (path.backend, path.root.clone());
-        let mut guard = devices().lock().expect("devices poisoned");
-        if let Some(device) = guard.get(&key) {
-            return Ok(device.clone());
-        }
-        let device = backend.mount(&path.root)?;
-        let device: Arc<dyn MountedDevice> = Arc::from(device);
-        guard.insert(key, device.clone());
-        Ok(device)
+        let block = Self::block_device_for(&path.root)?;
+        let mounted = backend.mount(&block)?;
+        let mounted: Arc<dyn MountedDevice> = Arc::from(mounted);
+        devices()
+            .lock()
+            .expect("devices poisoned")
+            .insert(key, mounted.clone());
+        Ok(mounted)
     }
 
-    pub fn mount_ref(path: &EPath) -> Result<(&std::path::Path, &std::path::Path), String> {
+    /// Reconstruct a [`BlockDevice`] from a [`DeviceId`] (mountable devices only).
+    pub fn block_device_for(id: &DeviceId) -> Result<BlockDevice, String> {
+        match id {
+            DeviceId::Host(path) if path.as_os_str().is_empty() => {
+                Err("host-disk-is-not-a-block-device".to_string())
+            }
+            DeviceId::Host(path) => BlockDevice::open_host(path.clone()),
+            DeviceId::Nested { parent, entry } => {
+                let parent_mounted = Self::mounted_by_id(parent)?;
+                let name = entry
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| entry.display().to_string());
+                Ok(BlockDevice::from_entry(
+                    (**parent).clone(),
+                    parent_mounted,
+                    entry.clone(),
+                    name,
+                ))
+            }
+        }
+    }
+
+    fn mounted_by_id(id: &DeviceId) -> Result<Arc<dyn MountedDevice>, String> {
+        if id.is_host_disk() {
+            return Ok(host_mounted());
+        }
+
+        {
+            let guard = devices().lock().expect("devices poisoned");
+            for ((_, cached_id), device) in guard.iter() {
+                if cached_id == id {
+                    return Ok(device.clone());
+                }
+            }
+        }
+
+        let block = Self::block_device_for(id)?;
+        let backend = try_registry()
+            .ok_or("fs backends not initialized")?
+            .find_backend(&block)
+            .ok_or("unsupported-archive")?;
+        let key = (backend.id(), id.clone());
+        let mounted = backend.mount(&block)?;
+        let mounted: Arc<dyn MountedDevice> = Arc::from(mounted);
+        devices()
+            .lock()
+            .expect("devices poisoned")
+            .insert(key, mounted.clone());
+        Ok(mounted)
+    }
+
+    pub fn mount_ref(path: &EPath) -> Result<(&DeviceId, &Path), String> {
         if !Self::is_mount(path) {
             return Err("not-a-mount-path".to_string());
         }
@@ -87,27 +147,30 @@ impl Mounter {
         Self::is_mount(path).then_some(path.backend)
     }
 
+    /// True when this path is inside a mounted archive (not host folder).
     pub fn is_mount(path: &EPath) -> bool {
-        path.resolve()
-            .map(|backend| !backend.is_disk_backend())
-            .unwrap_or(false)
+        !path.root.is_host_disk()
     }
 
     pub(crate) fn from_mount_address(input: &str, context: &EPath) -> Option<EPath> {
-        let container = context.archive_container()?;
+        let (container, _) = Self::mount_ref(context).ok()?;
         let trimmed = input.trim();
         let prefix = format!("{}\\", container.display());
         let inner = trimmed
             .strip_prefix(&prefix)
-            .or_else(|| trimmed.strip_prefix(&container.display().to_string()))
+            .or_else(|| trimmed.strip_prefix(&container.display()))
             .unwrap_or(trimmed);
         let backend = Self::mount_backend(context).or_else(|| {
-            try_registry()
-                .and_then(|registry| registry.find_backend(container))
-                .map(|backend| backend.id())
+            Self::block_device_for(container)
+                .ok()
+                .and_then(|device| {
+                    try_registry()
+                        .and_then(|registry| registry.find_backend(&device))
+                        .map(|backend| backend.id())
+                })
         })?;
         Some(Self::mount_path(
-            container.to_path_buf(),
+            container.clone(),
             normalize_mount_path(inner),
             backend,
         ))

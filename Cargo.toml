@@ -2,8 +2,8 @@
 members = [
     "explorer-core",
     "explorer-ui",
-    "backends/explorer-fs-local",
-    "backends/explorer-archive-zip",
+    "backends/explorer-fs-folder",
+    "backends/explorer-fs-zip",
 ]
 resolver = "2"
 
@@ -16,8 +16,8 @@ description = "A Windows Explorer-like file manager built with Iced"
 [dependencies]
 explorer-core = { path = "explorer-core" }
 explorer-ui = { path = "explorer-ui" }
-explorer-fs-local = { path = "backends/explorer-fs-local" }
-explorer-archive-zip = { path = "backends/explorer-archive-zip" }
+explorer-fs-folder = { path = "backends/explorer-fs-folder" }
+explorer-fs-zip = { path = "backends/explorer-fs-zip" }
 fluent = "0.17"
 iced = { version = "0.14", features = ["tokio", "advanced", "image"] }
 lucide-icons = { version = "1.20", features = ["iced"] }

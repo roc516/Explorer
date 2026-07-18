@@ -1,7 +1,6 @@
 use std::collections::{BTreeSet, HashMap};
-use std::path::PathBuf;
 
-use explorer_core::filesystem::{list_drives, EPath, Mounter, Reader, Volume};
+use explorer_core::filesystem::{list_drives, BlockDevice, EPath, Mounter, Reader, Volume};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TreeNode {
@@ -41,15 +40,17 @@ impl DirectoryTree {
         Self::with_roots(roots)
     }
 
-    pub fn for_mounted(container: PathBuf) -> Self {
-        let name = container
-            .file_name()
-            .map(|value| value.to_string_lossy().into_owned())
-            .unwrap_or_else(|| container.display().to_string());
+    pub fn for_mounted(device: BlockDevice) -> Self {
+        let name = device.name().to_string();
+        let name = if name.is_empty() {
+            device.id().display()
+        } else {
+            name
+        };
 
         Self::with_roots(vec![TreeNode {
             name,
-            path: Mounter::mount_root(container).unwrap_or_else(|message| {
+            path: Mounter::mount_root(device).unwrap_or_else(|message| {
                 panic!("unsupported archive: {message}")
             }),
         }])

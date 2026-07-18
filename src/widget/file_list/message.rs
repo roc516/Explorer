@@ -1,4 +1,4 @@
-use explorer_core::EPath;
+use explorer_core::{BlockDevice, EPath};
 use explorer_ui::FileEntry;
 
 use super::columns::Column;
@@ -14,9 +14,9 @@ pub enum Message {
     ColumnSortClicked(Column),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum Action {
     DirectoryChanged(EPath),
     PreviewFile(EPath),
-    OpenArchive(std::path::PathBuf),
+    OpenArchive(BlockDevice),
 }

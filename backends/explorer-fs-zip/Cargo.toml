@@ -1,8 +1,9 @@
 [package]
-name = "explorer-fs-local"
+name = "explorer-fs-zip"
 version = "0.1.0"
 edition = "2021"
-description = "Local disk filesystem backend for Explorer"
+description = "ZIP filesystem backend for Explorer"
 
 [dependencies]
 explorer-core = { path = "../../explorer-core" }
+zip = "8.6.0"

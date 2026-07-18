@@ -1,10 +1,11 @@
 use std::collections::BTreeSet;
-use std::fs::File;
-use std::io::Read;
-use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::io::{self, Read, Seek, SeekFrom};
+use std::path::Path;
+use std::sync::{Arc, Mutex};
 
-use explorer_core::filesystem::{EntryKind, FsBackend, MountedDevice, Mounter};
+use explorer_core::filesystem::{
+    BlockDevice, BlockIo, DeviceId, EntryKind, FsBackend, MountedDevice, Mounter,
+};
 use explorer_core::{DirEntry, FileEntry as CoreFileEntry, FsEntry};
 use zip::ZipArchive;
 
@@ -16,16 +17,55 @@ struct ZipEntryRecord {
     index: usize,
 }
 
+/// Adapts [`BlockIo`] to `Read + Seek` for [`ZipArchive`].
+struct BlockReader {
+    io: Arc<dyn BlockIo>,
+    pos: u64,
+}
+
+impl BlockReader {
+    fn new(io: Arc<dyn BlockIo>) -> Self {
+        Self { io, pos: 0 }
+    }
+}
+
+impl Read for BlockReader {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let n = self.io.read_at(self.pos, buf)?;
+        self.pos += n as u64;
+        Ok(n)
+    }
+}
+
+impl Seek for BlockReader {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        let len = self.io.len();
+        let next = match pos {
+            SeekFrom::Start(offset) => offset as i64,
+            SeekFrom::End(offset) => len as i64 + offset,
+            SeekFrom::Current(offset) => self.pos as i64 + offset,
+        };
+        if next < 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "seek before start",
+            ));
+        }
+        self.pos = next as u64;
+        Ok(self.pos)
+    }
+}
+
 pub struct ZipFs {
-    container: PathBuf,
+    device_id: DeviceId,
     entries: Vec<ZipEntryRecord>,
-    archive: Mutex<ZipArchive<File>>,
+    archive: Mutex<ZipArchive<BlockReader>>,
 }
 
 impl ZipFs {
-    pub fn open(container: &Path) -> Result<Self, String> {
-        let file = File::open(container).map_err(|err| err.to_string())?;
-        let mut archive = ZipArchive::new(file).map_err(|err| err.to_string())?;
+    pub fn open(device: &BlockDevice) -> Result<Self, String> {
+        let reader = BlockReader::new(device.io().clone());
+        let mut archive = ZipArchive::new(reader).map_err(|err| err.to_string())?;
         let mut entries = Vec::with_capacity(archive.len());
 
         for index in 0..archive.len() {
@@ -42,7 +82,7 @@ impl ZipFs {
         }
 
         Ok(Self {
-            container: container.to_path_buf(),
+            device_id: device.id().clone(),
             entries,
             archive: Mutex::new(archive),
         })
@@ -66,7 +106,7 @@ impl ZipFs {
                 files.push(FsEntry::File(CoreFileEntry {
                     name: parts[0].to_string(),
                     path: Mounter::mount_path(
-                        self.container.clone(),
+                        self.device_id.clone(),
                         Mounter::join_mounted_path(inner, parts[0]),
                         crate::ID,
                     ),
@@ -80,14 +120,16 @@ impl ZipFs {
 
         let mut items: Vec<FsEntry> = directories
             .into_iter()
-            .map(|name| FsEntry::Dir(DirEntry {
-                path: Mounter::mount_path(
-                    self.container.clone(),
-                    Mounter::join_mounted_path(inner, &name),
-                    crate::ID,
-                ),
-                name,
-            }))
+            .map(|name| {
+                FsEntry::Dir(DirEntry {
+                    path: Mounter::mount_path(
+                        self.device_id.clone(),
+                        Mounter::join_mounted_path(inner, &name),
+                        crate::ID,
+                    ),
+                    name,
+                })
+            })
             .collect();
 
         items.append(&mut files);
@@ -129,7 +171,6 @@ impl ZipFs {
             .archive
             .lock()
             .map_err(|_| "archive-lock-poisoned".to_string())?;
-        // Need to handle seeking: the Mutex<ZipArchive> is reused across reads
         let mut entry = archive.by_index(idx).map_err(|err| err.to_string())?;
         let mut bytes = Vec::new();
         entry
@@ -175,19 +216,38 @@ impl MountedDevice for ZipFs {
     }
 }
 
+fn extension_matches(name: &str) -> bool {
+    Path::new(name)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| crate::EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()))
+        .unwrap_or(false)
+}
+
+fn looks_like_zip(device: &BlockDevice) -> bool {
+    let mut magic = [0u8; 4];
+    match device.read_at(0, &mut magic) {
+        Ok(n) if n >= 2 => {}
+        _ => return false,
+    }
+    // Local file header or empty archive EOCD
+    matches!(&magic[..2], b"PK")
+        && (magic[2] == 0x03 || magic[2] == 0x05 || magic[2] == 0x07)
+}
+
 impl FsBackend for crate::ZipBackend {
     fn id(&self) -> &'static str {
         crate::ID
     }
 
-    fn matches(&self, path: &Path) -> bool {
-        path.extension()
-            .and_then(|ext| ext.to_str())
-            .map(|ext| crate::EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()))
-            .unwrap_or(false)
+    fn matches(&self, device: &BlockDevice) -> bool {
+        if extension_matches(device.name()) {
+            return true;
+        }
+        looks_like_zip(device)
     }
 
-    fn mount(&self, path: &Path) -> Result<Box<dyn MountedDevice>, String> {
-        ZipFs::open(path).map(|fs| Box::new(fs) as Box<dyn MountedDevice>)
+    fn mount(&self, device: &BlockDevice) -> Result<Box<dyn MountedDevice>, String> {
+        ZipFs::open(device).map(|fs| Box::new(fs) as Box<dyn MountedDevice>)
     }
 }

@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
-use explorer_core::filesystem::EPath;
-use explorer_core::filesystem::Mounter;
+use explorer_core::filesystem::{BlockDevice, EPath, Mounter};
 
 use crate::entry::FileEntry;
 use crate::i18n::{ids, LanguageBundle};
@@ -24,11 +23,11 @@ pub enum StatusInfo {
     Path(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum OpenEntryAction {
     Navigate(EPath),
     Preview(EPath),
-    OpenArchive(PathBuf),
+    OpenArchive(BlockDevice),
     OpenedSystem { name: String },
 }
 
@@ -58,9 +57,9 @@ impl ExplorerModel {
         Self::with_path(EPath::local(initial))
     }
 
-    pub fn new_mounted(container: PathBuf) -> Self {
+    pub fn new_mounted(device: BlockDevice) -> Self {
         Self::with_path(
-            Mounter::mount_root(container).unwrap_or_else(|message| {
+            Mounter::mount_root(device).unwrap_or_else(|message| {
                 panic!("unsupported archive: {message}")
             }),
         )
@@ -239,7 +238,7 @@ impl ExplorerModel {
                 .map(OpenEntryAction::Navigate);
         }
 
-        if let Some(archive) = entry.path.nested_archive_file() {
+        if let Some(archive) = entry.path.as_mountable_device() {
             return Some(OpenEntryAction::OpenArchive(archive));
         }
 

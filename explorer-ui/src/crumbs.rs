@@ -1,6 +1,6 @@
 use std::path::{Component, Path, PathBuf};
 
-use explorer_core::filesystem::{disk_path, try_registry, EPath, Mounter};
+use explorer_core::filesystem::{disk_path, host_backend, DeviceId, EPath, Mounter};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathBreadcrumb {
@@ -24,15 +24,10 @@ fn mount_breadcrumbs(path: &EPath) -> Vec<PathBreadcrumb> {
         Ok(parts) => parts,
         Err(_) => return Vec::new(),
     };
-    let disk_backend = try_registry()
-        .and_then(|registry| registry.disk_backend())
-        .map(|backend| backend.id());
-    let Some(disk_backend) = disk_backend else {
-        return Vec::new();
-    };
+    let disk_backend = host_backend().id();
 
-    let mut segments = disk_breadcrumbs(container, disk_backend);
-    let mut acc = Mounter::mount_path(container.to_path_buf(), PathBuf::new(), path.backend());
+    let mut segments = device_id_breadcrumbs(container, disk_backend, path.backend());
+    let mut acc = Mounter::mount_path(container.clone(), PathBuf::new(), path.backend());
 
     for component in inner.components() {
         if let Component::Normal(name) = component {
@@ -45,6 +40,33 @@ fn mount_breadcrumbs(path: &EPath) -> Vec<PathBreadcrumb> {
     }
 
     segments
+}
+
+fn device_id_breadcrumbs(
+    id: &DeviceId,
+    disk_backend: &'static str,
+    archive_backend: &'static str,
+) -> Vec<PathBreadcrumb> {
+    match id {
+        DeviceId::Host(path) => disk_breadcrumbs(path, disk_backend),
+        DeviceId::Nested { parent, entry } => {
+            let mut segments = device_id_breadcrumbs(parent, disk_backend, archive_backend);
+            let mut acc = Mounter::mount_path((**parent).clone(), PathBuf::new(), archive_backend);
+
+            // Parent archive root crumb already ends at parent; append entry components
+            // as paths inside the parent mount.
+            for component in entry.components() {
+                if let Component::Normal(name) = component {
+                    acc = acc.join_dir(name.to_str().unwrap_or_default());
+                    segments.push(PathBreadcrumb {
+                        path: acc.clone(),
+                        label: name.to_string_lossy().into_owned(),
+                    });
+                }
+            }
+            segments
+        }
+    }
 }
 
 fn disk_breadcrumbs(path: &Path, backend: &'static str) -> Vec<PathBreadcrumb> {

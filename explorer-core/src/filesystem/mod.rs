@@ -2,7 +2,8 @@ pub mod backends;
 mod path;
 
 pub use backends::{
-    ensure_backends_registered, is_mounted_path, try_registry, EntryKind, FsBackend, FsRegistry,
+    ensure_backends_registered, ensure_host_registered, host_backend, is_mountable, try_host,
+    try_registry, BlockDevice, BlockIo, DeviceId, EntryKind, FsBackend, FsRegistry, HostBackend,
     MountedDevice,
 };
 pub use path::{

@@ -1,31 +1,30 @@
 mod backend;
+mod device;
 mod fs;
+mod host;
 mod kinds;
 
-use std::path::Path;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 pub use backend::FsBackend;
+pub use device::{BlockDevice, BlockIo, DeviceId};
 pub use fs::MountedDevice;
+pub use host::HostBackend;
 pub use kinds::EntryKind;
 
+/// Registry of mountable backends (archives, etc.). Host FS is separate.
 pub struct FsRegistry {
     backends: Vec<Box<dyn FsBackend>>,
-    disk_backend: Option<&'static str>,
 }
 
 impl FsRegistry {
     pub fn new() -> Self {
         Self {
             backends: Vec::new(),
-            disk_backend: None,
         }
     }
 
     pub fn register(&mut self, backend: Box<dyn FsBackend>) {
-        if backend.is_disk_backend() {
-            self.disk_backend = Some(backend.id());
-        }
         self.backends.push(backend);
     }
 
@@ -36,21 +35,23 @@ impl FsRegistry {
             .map(|backend| backend.as_ref())
     }
 
-    pub fn disk_backend(&self) -> Option<&dyn FsBackend> {
-        self.disk_backend
-            .and_then(|id| self.get(id))
-    }
-
-    pub fn find_backend(&self, path: &Path) -> Option<&dyn FsBackend> {
+    pub fn find_backend(&self, device: &BlockDevice) -> Option<&dyn FsBackend> {
         self.backends
             .iter()
-            .find(|backend| backend.matches(path))
+            .find(|backend| backend.matches(device))
             .map(|backend| backend.as_ref())
     }
 }
 
+static HOST: OnceLock<Box<dyn HostBackend>> = OnceLock::new();
 static REGISTRY: OnceLock<FsRegistry> = OnceLock::new();
 
+/// Register the host folder backend (exactly once).
+pub fn ensure_host_registered(host: Box<dyn HostBackend>) {
+    let _ = HOST.set(host);
+}
+
+/// Register mountable backends (archives, etc.).
 pub fn ensure_backends_registered(build: impl FnOnce(&mut FsRegistry)) {
     let _ = REGISTRY.get_or_init(|| {
         let mut registry = FsRegistry::new();
@@ -59,21 +60,56 @@ pub fn ensure_backends_registered(build: impl FnOnce(&mut FsRegistry)) {
     });
 }
 
+pub fn try_host() -> Option<&'static dyn HostBackend> {
+    HOST.get().map(|h| h.as_ref())
+}
+
+pub fn host_backend() -> &'static dyn HostBackend {
+    try_host().expect("host backend not registered")
+}
+
 pub fn try_registry() -> Option<&'static FsRegistry> {
     REGISTRY.get()
 }
 
-pub fn is_mounted_path(path: &Path) -> bool {
+/// Whether any registered mountable backend can mount this block device.
+pub fn is_mountable(device: &BlockDevice) -> bool {
     REGISTRY
         .get()
-        .and_then(|registry| registry.find_backend(path))
+        .and_then(|registry| registry.find_backend(device))
         .is_some()
 }
 
 pub fn list_drives() -> Vec<crate::filesystem::Volume> {
-    REGISTRY
-        .get()
-        .and_then(|registry| registry.disk_backend())
-        .map(|backend| backend.list_roots())
+    try_host()
+        .map(|host| host.list_roots())
         .unwrap_or_default()
+}
+
+/// Adapter so host FS can be used wherever [`MountedDevice`] is expected.
+pub(crate) struct HostMountedDevice;
+
+impl MountedDevice for HostMountedDevice {
+    fn list(&self, path: &std::path::Path) -> Result<Vec<crate::entry::FsEntry>, String> {
+        host_backend().list(path)
+    }
+
+    fn read(&self, path: &std::path::Path) -> Result<Vec<u8>, String> {
+        host_backend().read(path)
+    }
+
+    fn exists(&self, path: &std::path::Path) -> bool {
+        host_backend().exists(path)
+    }
+
+    fn entry_kind(&self, path: &std::path::Path) -> Option<EntryKind> {
+        host_backend().entry_kind(path)
+    }
+}
+
+pub(crate) fn host_mounted() -> Arc<dyn MountedDevice> {
+    static DEVICE: OnceLock<Arc<dyn MountedDevice>> = OnceLock::new();
+    DEVICE
+        .get_or_init(|| Arc::new(HostMountedDevice) as Arc<dyn MountedDevice>)
+        .clone()
 }
