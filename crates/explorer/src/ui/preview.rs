@@ -1,7 +1,10 @@
-mod document;
-mod hex;
-mod image;
-mod text;
+pub mod document;
+pub mod hex;
+pub mod image;
+pub mod text;
+mod message;
+
+pub use message::Message;
 
 use explorer_app::{ids, LanguageBundle, PreviewFile, PreviewKind};
 use explorer_core::FsEntry;
@@ -16,7 +19,6 @@ use iced::{alignment, Element, Fill, Length, Task, Theme};
 use crate::fluent::{
     DIALOG_WIDTH_PREVIEW, HEIGHT_PREVIEW_BODY, HEIGHT_PREVIEW_STATUS_BAR, SPACE_LG, SPACE_MD,
 };
-use crate::message::preview;
 use crate::ui::dialog::Dialog;
 use crate::ui::style::{error_text, secondary_button};
 
@@ -52,7 +54,7 @@ impl PreviewState {
         }
     }
 
-    pub fn set_loaded_file(&mut self, file: PreviewFile) -> Task<preview::Message> {
+    pub fn set_loaded_file(&mut self, file: PreviewFile) -> Task<Message> {
         self.error = None;
         self.image = image::Image::for_file(&file);
         self.document = document::Document::for_file(&file);
@@ -60,7 +62,7 @@ impl PreviewState {
         let text_task = match text::Text::for_file(&file) {
             Some((text, task)) => {
                 self.text = Some(text);
-                task
+                task.map(Message::Text)
             }
             None => {
                 self.text = None;
@@ -70,7 +72,7 @@ impl PreviewState {
         let hex_task = match hex::Hex::for_file(&file) {
             Some((hex, task)) => {
                 self.hex = Some(hex);
-                task
+                task.map(Message::Hex)
             }
             None => {
                 self.hex = None;
@@ -82,10 +84,10 @@ impl PreviewState {
     }
 }
 
-pub fn load_preview_task(entry: FsEntry) -> Task<preview::Message> {
+pub fn load_preview_task(entry: FsEntry) -> Task<Message> {
     Task::perform(
         async move { explorer_app::load_preview(&entry) },
-        preview::Message::Loaded,
+        Message::Loaded,
     )
 }
 
@@ -96,17 +98,10 @@ impl Preview {
         Self
     }
 
-    pub fn view<'a>(&self, bundle: LanguageBundle, state: &'a PreviewState) -> Element<'a, preview::Message> {
+    pub fn view<'a>(&self, bundle: LanguageBundle, state: &'a PreviewState) -> Element<'a, Message> {
         let open_label = bundle.tr(ids::PREVIEW_OPEN_EXTERNAL);
-        let loading_label = bundle.tr(ids::PREVIEW_LOADING);
-
-        let body: Element<'a, preview::Message> = if state.loading {
-            container(text_widget(loading_label).size(14))
-                .width(Fill)
-                .height(Fill)
-                .align_x(alignment::Horizontal::Center)
-                .align_y(alignment::Vertical::Center)
-                .into()
+        let body: Element<'a, Message> = if state.loading {
+            crate::ui::loading::view_tr(bundle)
         } else if let Some(error) = &state.error {
             preview_message(error.clone(), true)
         } else if let Some(file) = &state.file {
@@ -141,16 +136,19 @@ impl Preview {
         let footer = if show_status_bar {
             state.file.as_ref().and_then(|file| match &file.kind {
                 PreviewKind::Text(text_preview) => state.text.as_ref().map(|text| {
-                    text::status_bar(bundle, text, text_preview, file)
+                    text::status_bar(bundle, text, text_preview, file).map(Message::Text)
                 }),
                 PreviewKind::Image(image_preview) => state.image.as_ref().map(|image| {
-                    image::status_bar(bundle, image, image_preview, file)
+                    image::status_bar(bundle, image, image_preview, file).map(Message::Image)
                 }),
                 PreviewKind::Word(_) | PreviewKind::Ppt(_) | PreviewKind::Pdf(_) => {
-                    state.document.as_ref().map(|_| document::status_bar(bundle, file))
+                    state
+                        .document
+                        .as_ref()
+                        .map(|_| document::status_bar(bundle, file).map(Message::Document))
                 }
                 PreviewKind::Hex(hex_preview) => state.hex.as_ref().map(|hex| {
-                    hex::status_bar(bundle, hex_preview, hex, file)
+                    hex::status_bar(bundle, hex_preview, hex, file).map(Message::Hex)
                 }),
                 PreviewKind::Unsupported { .. } => None,
             })
@@ -158,7 +156,7 @@ impl Preview {
             None
         };
 
-        let mut dialog = Dialog::new(state.name.clone(), preview::Message::Close)
+        let mut dialog = Dialog::new(state.name.clone(), Message::Close)
             .width(DIALOG_WIDTH_PREVIEW)
             .body(body);
 
@@ -180,7 +178,7 @@ impl Default for Preview {
     }
 }
 
-fn open_external_button<'a>(label: String) -> Element<'a, preview::Message> {
+fn open_external_button<'a>(label: String) -> Element<'a, Message> {
     button(
         container(text_widget(label).size(13).line_height(iced::Pixels(18.0)))
             .height(Length::Fixed(32.0))
@@ -188,7 +186,7 @@ fn open_external_button<'a>(label: String) -> Element<'a, preview::Message> {
             .align_x(alignment::Horizontal::Center)
             .align_y(alignment::Vertical::Center),
     )
-    .on_press(preview::Message::OpenExternal)
+    .on_press(Message::OpenExternal)
     .height(Length::Fixed(32.0))
     .padding(0)
     .style(secondary_button)
@@ -199,36 +197,36 @@ fn body_for_file<'a>(
     bundle: LanguageBundle,
     file: &'a PreviewFile,
     state: &'a PreviewState,
-) -> Element<'a, preview::Message> {
+) -> Element<'a, Message> {
     match &file.kind {
         PreviewKind::Text(text_preview) => state
             .text
             .as_ref()
-            .map(|text| text::view(bundle, text_preview, text))
+            .map(|text| text::view(bundle, text_preview, text).map(Message::Text))
             .unwrap_or_else(|| preview_message(bundle.tr(ids::PREVIEW_LOAD_FAILED), true)),
         PreviewKind::Image(image_preview) => state
             .image
             .as_ref()
-            .map(|image| image::view(image_preview, image.zoom))
+            .map(|image| image::view(image_preview, image.zoom).map(Message::Image))
             .unwrap_or_else(|| preview_message(bundle.tr(ids::PREVIEW_LOAD_FAILED), true)),
         PreviewKind::Word(_) | PreviewKind::Ppt(_) | PreviewKind::Pdf(_) => state
             .document
             .as_ref()
-            .map(|document| document::view(bundle, document))
+            .map(|document| document::view(bundle, document).map(Message::Document))
             .unwrap_or_else(|| preview_message(bundle.tr(ids::PREVIEW_LOAD_FAILED), true)),
         PreviewKind::Hex(hex_preview) => state
             .hex
             .as_ref()
-            .map(|hex| hex::view(bundle, hex_preview, hex))
+            .map(|hex| hex::view(bundle, hex_preview, hex).map(Message::Hex))
             .unwrap_or_else(|| preview_message(bundle.tr(ids::PREVIEW_LOAD_FAILED), true)),
         PreviewKind::Unsupported { extension } => unsupported_message(bundle, extension),
     }
 }
 
-pub(super) fn read_only_editor<'a>(
+pub(super) fn read_only_editor<'a, Message: Clone + 'a>(
     content: &'a text_editor::Content,
-    on_action: impl Fn(text_editor::Action) -> preview::Message + 'a,
-) -> Element<'a, preview::Message> {
+    on_action: impl Fn(text_editor::Action) -> Message + 'a,
+) -> Element<'a, Message> {
     scrollable(
         text_editor_widget(content)
             .on_action(on_action)
@@ -259,7 +257,10 @@ pub(super) fn document_editor_style(
     style
 }
 
-pub(super) fn preview_message(message: String, is_error: bool) -> Element<'static, preview::Message> {
+pub(super) fn preview_message<Message: 'static>(
+    message: String,
+    is_error: bool,
+) -> Element<'static, Message> {
     container(
         text_widget(message)
             .size(14)
@@ -284,7 +285,7 @@ pub(super) fn preview_message(message: String, is_error: bool) -> Element<'stati
 fn unsupported_message(
     bundle: LanguageBundle,
     extension: &Option<String>,
-) -> Element<'static, preview::Message> {
+) -> Element<'static, Message> {
     let label = if let Some(ext) = extension {
         let mut args = FluentArgs::new();
         args.set("extension", FluentValue::from(ext.clone()));

@@ -11,11 +11,13 @@ use iced::window;
 use iced::window::settings::PlatformSpecific;
 use iced::{Element, Fill, Subscription, Task, Theme};
 
-use crate::message::{input, preview, settings, theme, window as window_msg, Message, Launch};
+use crate::message::{input, window as window_msg, Message, Launch};
 use crate::theme::AppTheme;
 use crate::ui::directory_tree::{self, Action as TreeAction, DirectoryTree};
 use crate::ui::file_list::{self, Action as FileListAction, FileList};
-use crate::ui::preview::{self as preview_ui, Preview, PreviewState};
+use crate::ui::preview::{
+    self as preview_ui, document, hex, image, text, Message as PreviewMessage, Preview, PreviewState,
+};
 use crate::ui::settings::{self as settings_ui, Settings};
 use crate::ui::status_bar::StatusBar;
 use crate::ui::toolbar::{self, Action as ToolbarAction, Toolbar};
@@ -79,7 +81,6 @@ impl App {
                 self.focused_window = Some(id);
                 Task::none()
             }
-            Message::Theme(message) => self.update_theme(message),
             Message::Locale(message) => self.update_locale(message),
             Message::Settings(message) => self.update_settings(message),
         }
@@ -112,7 +113,7 @@ impl App {
                 (event == window::Event::Focused).then_some(Message::WindowFocused(id))
             }),
             iced::system::theme_changes()
-                .map(|mode| Message::Theme(theme::Message::SystemChanged(mode))),
+                .map(|mode| Message::Settings(settings_ui::Message::SystemThemeChanged(mode))),
         ];
 
         subscriptions.push(
@@ -227,25 +228,19 @@ impl App {
         task.map(move |message| Message::Window(id, message))
     }
 
-    fn update_theme(&mut self, message: theme::Message) -> Task<Message> {
+    fn update_settings(&mut self, message: settings_ui::Message) -> Task<Message> {
         match message {
-            theme::Message::Selected(choice) => {
-                self.theme_choice = choice;
-            }
-            theme::Message::SystemChanged(mode) => {
-                self.system_mode = mode;
-            }
-        }
-        Task::none()
-    }
-
-    fn update_settings(&mut self, message: settings::Message) -> Task<Message> {
-        match message {
-            settings::Message::Toggle => {
+            settings_ui::Message::Toggle => {
                 self.settings_open = !self.settings_open;
             }
-            settings::Message::Close => {
+            settings_ui::Message::Close => {
                 self.settings_open = false;
+            }
+            settings_ui::Message::ThemeSelected(choice) => {
+                self.theme_choice = choice;
+            }
+            settings_ui::Message::SystemThemeChanged(mode) => {
+                self.system_mode = mode;
             }
         }
         Task::none()
@@ -390,17 +385,17 @@ impl Explorer {
         (Task::batch(tasks), None)
     }
 
-    fn open_preview(&mut self, entry: explorer_core::FsEntry) -> Task<preview::Message> {
+    fn open_preview(&mut self, entry: explorer_core::FsEntry) -> Task<PreviewMessage> {
         self.preview_state = Some(PreviewState::opening(entry.clone()));
         preview_ui::load_preview_task(entry)
     }
 
-    fn update_preview(&mut self, message: preview::Message) -> Task<window_msg::Message> {
+    fn update_preview(&mut self, message: PreviewMessage) -> Task<window_msg::Message> {
         match message {
-            preview::Message::Close => {
+            PreviewMessage::Close => {
                 self.preview_state = None;
             }
-            preview::Message::Loaded(result) => {
+            PreviewMessage::Loaded(result) => {
                 let bundle = self.model.bundle.clone();
                 let task = if let Some(state) = &mut self.preview_state {
                     state.loading = false;
@@ -424,7 +419,7 @@ impl Explorer {
                 };
                 return task.map(window_msg::Message::Preview);
             }
-            preview::Message::OpenExternal => {
+            PreviewMessage::OpenExternal => {
                 if let Some(source) = self.preview_state.as_ref().map(|state| state.source.clone()) {
                     if let Err(message) = explorer_app::open_with_system(&source) {
                         if let Some(state) = &mut self.preview_state {
@@ -433,132 +428,105 @@ impl Explorer {
                     }
                 }
             }
-            preview::Message::EncodingSelected(encoding) => {
-                let task = if let Some(state) = &mut self.preview_state {
-                    if let (Some(text), Some(file)) = (&mut state.text, state.file.as_ref()) {
-                        if let explorer_app::PreviewKind::Text(preview) = &file.kind {
-                            let preview = preview.clone();
-                            text.select_encoding(&preview, encoding)
-                        } else {
+            PreviewMessage::Text(message) => {
+                return self.update_text_preview(message);
+            }
+            PreviewMessage::Hex(message) => {
+                return self.update_hex_preview(message);
+            }
+            PreviewMessage::Image(message) => {
+                self.update_image_preview(message);
+            }
+            PreviewMessage::Document(message) => {
+                self.update_document_preview(message);
+            }
+        }
+        Task::none()
+    }
+
+    fn update_text_preview(&mut self, message: text::Message) -> Task<window_msg::Message> {
+        let task = if let Some(state) = &mut self.preview_state {
+            if let (Some(text_state), Some(file)) = (&mut state.text, state.file.as_ref()) {
+                if let explorer_app::PreviewKind::Text(preview) = &file.kind {
+                    let preview = preview.clone();
+                    match message {
+                        text::Message::Scrolled(y) => text_state.on_scroll(&preview, y),
+                        text::Message::EncodingSelected(encoding) => {
+                            text_state.select_encoding(&preview, encoding)
+                        }
+                        text::Message::IndexLoaded { id, result } => {
+                            text_state.apply_index(&preview, id, result)
+                        }
+                        text::Message::WindowLoaded { id, start, result } => {
+                            text_state.apply_window(id, start, result);
                             Task::none()
                         }
-                    } else {
-                        Task::none()
                     }
+                    .map(PreviewMessage::Text)
                 } else {
                     Task::none()
-                };
-                return task.map(window_msg::Message::Preview);
+                }
+            } else {
+                Task::none()
             }
-            preview::Message::TextScrolled(y) => {
-                let task = if let Some(state) = &mut self.preview_state {
-                    if let (Some(text), Some(file)) = (&mut state.text, state.file.as_ref()) {
-                        if let explorer_app::PreviewKind::Text(preview) = &file.kind {
-                            let preview = preview.clone();
-                            text.on_scroll(&preview, y)
-                        } else {
+        } else {
+            Task::none()
+        };
+        task.map(window_msg::Message::Preview)
+    }
+
+    fn update_hex_preview(&mut self, message: hex::Message) -> Task<window_msg::Message> {
+        let task = if let Some(state) = &mut self.preview_state {
+            if let (Some(hex_state), Some(file)) = (&mut state.hex, state.file.as_ref()) {
+                if let explorer_app::PreviewKind::Hex(preview) = &file.kind {
+                    let preview = preview.clone();
+                    match message {
+                        hex::Message::Scrolled(y) => hex_state.on_scroll(&preview, y),
+                        hex::Message::Select(index) => {
+                            hex_state.select(index);
                             Task::none()
                         }
-                    } else {
-                        Task::none()
-                    }
-                } else {
-                    Task::none()
-                };
-                return task.map(window_msg::Message::Preview);
-            }
-            preview::Message::TextIndexLoaded { id, result } => {
-                let task = if let Some(state) = &mut self.preview_state {
-                    if let (Some(text), Some(file)) = (&mut state.text, state.file.as_ref()) {
-                        if let explorer_app::PreviewKind::Text(preview) = &file.kind {
-                            let preview = preview.clone();
-                            text.apply_index(&preview, id, result)
-                        } else {
+                        hex::Message::WindowLoaded { id, start, result } => {
+                            hex_state.apply_window(id, start, result);
                             Task::none()
                         }
-                    } else {
-                        Task::none()
                     }
+                    .map(PreviewMessage::Hex)
                 } else {
                     Task::none()
-                };
-                return task.map(window_msg::Message::Preview);
+                }
+            } else {
+                Task::none()
             }
-            preview::Message::TextWindowLoaded { id, start, result } => {
-                if let Some(state) = &mut self.preview_state {
-                    if let Some(text) = &mut state.text {
-                        text.apply_window(id, start, result);
-                    }
+        } else {
+            Task::none()
+        };
+        task.map(window_msg::Message::Preview)
+    }
+
+    fn update_image_preview(&mut self, message: image::Message) {
+        if let Some(state) = &mut self.preview_state {
+            if let Some(image_state) = &mut state.image {
+                match message {
+                    image::Message::ZoomIn => image_state.zoom_in(),
+                    image::Message::ZoomOut => image_state.zoom_out(),
+                    image::Message::ZoomReset => image_state.reset(),
+                    image::Message::WheelZoom(factor) => image_state.wheel_zoom(factor),
                 }
             }
-            preview::Message::DocumentEditor(action) => {
-                if let Some(state) = &mut self.preview_state {
-                    if let Some(document) = &mut state.document {
-                        document.handle_editor_action(action);
-                    }
-                }
-            }
-            preview::Message::ImageZoomIn => {
-                if let Some(state) = &mut self.preview_state {
-                    if let Some(image) = &mut state.image {
-                        image.zoom_in();
-                    }
-                }
-            }
-            preview::Message::ImageZoomOut => {
-                if let Some(state) = &mut self.preview_state {
-                    if let Some(image) = &mut state.image {
-                        image.zoom_out();
-                    }
-                }
-            }
-            preview::Message::ImageZoomReset => {
-                if let Some(state) = &mut self.preview_state {
-                    if let Some(image) = &mut state.image {
-                        image.reset();
-                    }
-                }
-            }
-            preview::Message::ImageWheelZoom(factor) => {
-                if let Some(state) = &mut self.preview_state {
-                    if let Some(image) = &mut state.image {
-                        image.wheel_zoom(factor);
-                    }
-                }
-            }
-            preview::Message::HexScrolled(y) => {
-                let task = if let Some(state) = &mut self.preview_state {
-                    if let (Some(hex), Some(file)) = (&mut state.hex, state.file.as_ref()) {
-                        if let explorer_app::PreviewKind::Hex(preview) = &file.kind {
-                            let preview = preview.clone();
-                            hex.on_scroll(&preview, y)
-                        } else {
-                            Task::none()
-                        }
-                    } else {
-                        Task::none()
-                    }
-                } else {
-                    Task::none()
-                };
-                return task.map(window_msg::Message::Preview);
-            }
-            preview::Message::HexSelect(index) => {
-                if let Some(state) = &mut self.preview_state {
-                    if let Some(hex) = &mut state.hex {
-                        hex.select(index);
-                    }
-                }
-            }
-            preview::Message::HexWindowLoaded { id, start, result } => {
-                if let Some(state) = &mut self.preview_state {
-                    if let Some(hex) = &mut state.hex {
-                        hex.apply_window(id, start, result);
+        }
+    }
+
+    fn update_document_preview(&mut self, message: document::Message) {
+        if let Some(state) = &mut self.preview_state {
+            if let Some(document_state) = &mut state.document {
+                match message {
+                    document::Message::Editor(action) => {
+                        document_state.handle_editor_action(action);
                     }
                 }
             }
         }
-        Task::none()
     }
 
     fn update_tree(&mut self, message: directory_tree::Message) -> Task<window_msg::Message> {
@@ -587,7 +555,7 @@ impl Explorer {
 
         match key {
             keyboard::Key::Named(keyboard::key::Named::Escape) if self.preview_state.is_some() => {
-                self.update_preview(preview::Message::Close)
+                self.update_preview(PreviewMessage::Close)
             }
             keyboard::Key::Named(keyboard::key::Named::Escape) if settings_open => Task::none(),
             keyboard::Key::Named(keyboard::key::Named::Escape)

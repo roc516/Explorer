@@ -8,6 +8,11 @@ pub enum Message {
     EntryClicked(usize),
     EntryDoubleClicked(usize),
     DirectoryLoaded(Result<(DirEntry, Vec<FileEntry>), String>),
+    EntriesSorted {
+        id: u64,
+        entries: Vec<FileEntry>,
+        selected_index: Option<usize>,
+    },
     ColumnResizeStarted(Column),
     ColumnResizeMoved(f32),
     ColumnResizeEnded,

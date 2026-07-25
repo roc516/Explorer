@@ -1,6 +1,7 @@
 use std::fmt;
 
 use explorer_app::{ids, Language, LanguageBundle};
+use iced::theme::Mode;
 use iced::widget::{column, container, pick_list, row, rule, text, Space};
 use iced::{alignment, Element, Fill, Length, Theme};
 use lucide_icons::Icon;
@@ -8,7 +9,7 @@ use lucide_icons::Icon;
 use crate::fluent::{
     DIALOG_WIDTH_SETTINGS, HEIGHT_SETTING_ROW, SPACE_LG, SPACE_MD, SPACE_SM, WIDTH_SETTING_COMBO,
 };
-use crate::message::{settings, theme, Message as AppMessage};
+use crate::message::Message as AppMessage;
 use crate::theme::{theme_options, AppTheme};
 use crate::ui::dialog::Dialog;
 use crate::ui::style::pick_list_style;
@@ -21,6 +22,14 @@ pub mod locale {
     pub enum Message {
         Selected(Language),
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum Message {
+    Toggle,
+    Close,
+    ThemeSelected(AppTheme),
+    SystemThemeChanged(Mode),
 }
 
 const THEME_MENU_HEIGHT: f32 = 280.0;
@@ -51,7 +60,7 @@ impl Settings {
         let theme_picker = pick_list(
             themes,
             selected_theme,
-            |option| AppMessage::Theme(theme::Message::Selected(option.theme)),
+            |option| AppMessage::Settings(Message::ThemeSelected(option.theme)),
         )
         .width(Fill)
         .menu_height(Length::Fixed(THEME_MENU_HEIGHT))
@@ -88,7 +97,7 @@ impl Settings {
         )
         .padding([SPACE_MD, SPACE_LG]);
 
-        Dialog::new(title, AppMessage::Settings(settings::Message::Close))
+        Dialog::new(title, AppMessage::Settings(Message::Close))
             .width(DIALOG_WIDTH_SETTINGS)
             .body(body)
             .view()

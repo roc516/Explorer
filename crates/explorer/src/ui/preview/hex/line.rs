@@ -2,7 +2,7 @@ use iced::widget::{container, mouse_area, row, text, Space};
 use iced::{alignment, Element, Fill, Font, Length, Theme};
 
 use crate::fluent::{SPACE_MD, SPACE_SM};
-use crate::message::preview;
+use super::Message;
 use crate::ui::preview::status_muted_text;
 
 use super::byte;
@@ -15,8 +15,8 @@ pub fn view(
     chunk: &[u8],
     file_size: usize,
     selected: Option<usize>,
-) -> Element<'static, preview::Message> {
-    let mut hex_cells: Vec<Element<'static, preview::Message>> =
+) -> Element<'static, Message> {
+    let mut hex_cells: Vec<Element<'static, Message>> =
         Vec::with_capacity(BYTES_PER_LINE + 1);
     for i in 0..BYTES_PER_LINE {
         if i == 8 {
@@ -46,7 +46,7 @@ pub fn view(
         .height(Length::Fixed(LINE_HEIGHT))
         .align_y(alignment::Vertical::Center),
     )
-    .on_press(preview::Message::HexSelect(offset));
+    .on_press(Message::Select(offset));
 
     row![
         container(

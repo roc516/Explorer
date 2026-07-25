@@ -3,7 +3,8 @@ use iced::widget::row;
 use iced::Element;
 
 use crate::fluent::SPACE_XS;
-use crate::message::{settings, window as window_msg, Message as AppMessage};
+use crate::message::{window as window_msg, Message as AppMessage};
+use crate::ui::settings;
 
 use super::icons::{self as toolbar_icons, NavIcon};
 use super::Message;

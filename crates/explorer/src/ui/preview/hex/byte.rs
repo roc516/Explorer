@@ -1,11 +1,11 @@
 use iced::widget::{button, container, text};
 use iced::{alignment, Element, Font, Length, Theme};
 
-use crate::message::preview;
+use super::Message;
 
 use super::{BYTE_WIDTH, FONT_SIZE, LINE_HEIGHT};
 
-pub fn view(index: usize, byte: u8, selected: bool) -> Element<'static, preview::Message> {
+pub fn view(index: usize, byte: u8, selected: bool) -> Element<'static, Message> {
     button(
         container(
             text(format!("{byte:02X}"))
@@ -18,13 +18,13 @@ pub fn view(index: usize, byte: u8, selected: bool) -> Element<'static, preview:
         .align_x(alignment::Horizontal::Center)
         .align_y(alignment::Vertical::Center),
     )
-    .on_press(preview::Message::HexSelect(index))
+    .on_press(Message::Select(index))
     .padding(0)
     .style(if selected { selected_button } else { button_style })
     .into()
 }
 
-pub fn placeholder() -> Element<'static, preview::Message> {
+pub fn placeholder() -> Element<'static, Message> {
     container(text("  ").size(FONT_SIZE).font(Font::MONOSPACE))
         .width(Length::Fixed(BYTE_WIDTH))
         .height(Length::Fixed(LINE_HEIGHT))

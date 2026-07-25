@@ -11,7 +11,6 @@ use iced::{Element, Fill, Length, Task};
 use crate::fluent::{
     HEIGHT_PREVIEW_BODY, HEIGHT_PREVIEW_STATUS_BAR, SPACE_LG, SPACE_XS,
 };
-use crate::message::preview;
 
 use super::preview_message;
 
@@ -26,6 +25,18 @@ pub(crate) const FONT_SIZE: f32 = 12.0;
 const OVERSCAN_LINES: usize = 4;
 /// Extra lines kept beyond the visible range so small scrolls reuse the cache.
 const WINDOW_MARGIN_LINES: usize = 16;
+
+#[derive(Debug, Clone)]
+pub enum Message {
+    Scrolled(f32),
+    Select(usize),
+    WindowLoaded {
+        id: u64,
+        start: usize,
+        result: Result<Vec<u8>, String>,
+    },
+}
+
 
 #[derive(Debug, Clone)]
 struct ByteWindow {
@@ -81,7 +92,7 @@ pub struct Hex {
 }
 
 impl Hex {
-    pub fn for_file(file: &PreviewFile) -> Option<(Self, Task<preview::Message>)> {
+    pub fn for_file(file: &PreviewFile) -> Option<(Self, Task<Message>)> {
         let PreviewKind::Hex(preview) = &file.kind else {
             return None;
         };
@@ -101,7 +112,7 @@ impl Hex {
         }
     }
 
-    pub fn on_scroll(&mut self, preview: &HexPreview, y: f32) -> Task<preview::Message> {
+    pub fn on_scroll(&mut self, preview: &HexPreview, y: f32) -> Task<Message> {
         self.scroll_y = y;
         self.request_window(preview)
     }
@@ -131,7 +142,7 @@ impl Hex {
         }
     }
 
-    fn request_window(&mut self, preview: &HexPreview) -> Task<preview::Message> {
+    fn request_window(&mut self, preview: &HexPreview) -> Task<Message> {
         if preview.size == 0 {
             self.window = Some(ByteWindow {
                 start: 0,
@@ -173,7 +184,7 @@ impl Hex {
         let preview = preview.clone();
         Task::perform(
             async move { (id, start, preview.read_range(start as u64, len)) },
-            |(id, start, result)| preview::Message::HexWindowLoaded { id, start, result },
+            |(id, start, result)| Message::WindowLoaded { id, start, result },
         )
     }
 }
@@ -188,7 +199,7 @@ pub fn view(
     bundle: LanguageBundle,
     preview: &HexPreview,
     state: &Hex,
-) -> Element<'static, preview::Message> {
+) -> Element<'static, Message> {
     if preview.size == 0 {
         return preview_message(bundle.tr(ids::PREVIEW_HEX_EMPTY), false);
     }
@@ -198,13 +209,13 @@ pub fn view(
     }
 
     let Some(window) = &state.window else {
-        return preview_message(bundle.tr(ids::PREVIEW_LOADING), false);
+        return crate::ui::loading::view_tr(bundle);
     };
 
     let line_count = preview.size.div_ceil(BYTES_PER_LINE as u64) as usize;
     let (first, last) = visible_line_range(state.scroll_y, line_count);
 
-    let mut lines: Vec<Element<'static, preview::Message>> = Vec::with_capacity(last - first + 2);
+    let mut lines: Vec<Element<'static, Message>> = Vec::with_capacity(last - first + 2);
     if first > 0 {
         lines.push(
             Space::new()
@@ -237,7 +248,7 @@ pub fn view(
             .height(Length::Fixed(line_count as f32 * LINE_HEIGHT)),
     )
     .direction(Direction::Vertical(scrollable::Scrollbar::default()))
-    .on_scroll(|viewport| preview::Message::HexScrolled(viewport.absolute_offset().y))
+    .on_scroll(|viewport| Message::Scrolled(viewport.absolute_offset().y))
     .width(Fill)
     .height(Fill);
 

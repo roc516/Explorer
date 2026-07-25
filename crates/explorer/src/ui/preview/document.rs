@@ -7,9 +7,13 @@ use iced::{alignment, Element, Fill, Length};
 use crate::fluent::{
     FONT_SIZE_CAPTION, HEIGHT_PREVIEW_STATUS_BAR, PAGE_PADDING_H, SPACE_MD, SPACE_XS,
 };
-use crate::message::preview;
 
-use super::{preview_message, preview_status_bar, read_only_editor, status_muted_text};
+use super::{preview_status_bar, read_only_editor, status_muted_text};
+
+#[derive(Debug, Clone)]
+pub enum Message {
+    Editor(text_editor::Action),
+}
 
 #[derive(Debug, Clone)]
 pub struct Document {
@@ -42,15 +46,15 @@ impl Document {
     }
 }
 
-pub fn view<'a>(bundle: LanguageBundle, document: &'a Document) -> Element<'a, preview::Message> {
+pub fn view<'a>(bundle: LanguageBundle, document: &'a Document) -> Element<'a, Message> {
     let Some(content) = document.editor.as_ref() else {
-        return preview_message(bundle.tr(ids::PREVIEW_LOADING), false);
+        return crate::ui::loading::view_tr(bundle);
     };
 
-    read_only_editor(content, |action| preview::Message::DocumentEditor(action))
+    read_only_editor(content, |action| Message::Editor(action))
 }
 
-pub fn status_bar(bundle: LanguageBundle, file: &PreviewFile) -> Element<'static, preview::Message> {
+pub fn status_bar(bundle: LanguageBundle, file: &PreviewFile) -> Element<'static, Message> {
     let kind_label = match &file.kind {
         PreviewKind::Word(_) => bundle.tr(ids::PREVIEW_WORD_DOCUMENT),
         PreviewKind::Ppt(_) => bundle.tr(ids::PREVIEW_PPT_DOCUMENT),
@@ -72,7 +76,7 @@ pub fn status_bar(bundle: LanguageBundle, file: &PreviewFile) -> Element<'static
         _ => None,
     };
 
-    let mut items: Vec<Element<'static, preview::Message>> = vec![
+    let mut items: Vec<Element<'static, Message>> = vec![
         text(kind_label)
             .size(FONT_SIZE_CAPTION)
             .style(status_muted_text)

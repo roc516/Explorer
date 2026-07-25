@@ -5,18 +5,17 @@ use iced::{alignment, Element, Fill, Length};
 use crate::fluent::{
     FONT_SIZE_CAPTION, HEIGHT_PREVIEW_STATUS_BAR, PAGE_PADDING_H, SPACE_MD, SPACE_XS,
 };
-use crate::message::preview;
 use crate::ui::style::{error_text, pick_list_style};
 use crate::ui::preview::{preview_status_bar, status_muted_text};
 
-use super::Text;
+use super::{Message, Text};
 
 pub fn view(
     bundle: LanguageBundle,
     text_state: &Text,
     text_preview: &TextPreview,
     file: &PreviewFile,
-) -> Element<'static, preview::Message> {
+) -> Element<'static, Message> {
     let size_label = bundle.format_size(file.size);
 
     let encoding_error = text_state.encoding_error.as_ref().map(|error| {
@@ -52,7 +51,7 @@ pub fn view(
     .into()
 }
 
-fn encoding_error_label(message: String) -> Element<'static, preview::Message> {
+fn encoding_error_label(message: String) -> Element<'static, Message> {
     text(message)
         .size(FONT_SIZE_CAPTION)
         .style(error_text)
@@ -63,7 +62,7 @@ fn encoding_controls(
     bundle: LanguageBundle,
     selected: TextEncoding,
     text_preview: &TextPreview,
-) -> Element<'static, preview::Message> {
+) -> Element<'static, Message> {
     let label = bundle.tr(ids::PREVIEW_ENCODING_LABEL);
     let options: Vec<EncodingOption> = TextEncoding::SELECTABLE
         .iter()
@@ -79,7 +78,7 @@ fn encoding_controls(
         .cloned();
 
     let picker = pick_list(options, current, |option| {
-        preview::Message::EncodingSelected(option.encoding)
+        Message::EncodingSelected(option.encoding)
     })
     .text_size(FONT_SIZE_CAPTION)
     .padding([2, 8])
@@ -98,7 +97,7 @@ fn encoding_controls(
         None
     };
 
-    let mut items: Vec<Element<'static, preview::Message>> = vec![
+    let mut items: Vec<Element<'static, Message>> = vec![
         text(label)
             .size(FONT_SIZE_CAPTION)
             .style(status_muted_text)

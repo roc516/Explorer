@@ -5,7 +5,7 @@ use iced::{alignment, Element, Fill, Font, Length};
 use crate::fluent::{
     FONT_SIZE_CAPTION, HEIGHT_PREVIEW_STATUS_BAR, PAGE_PADDING_H, SPACE_MD, SPACE_XS,
 };
-use crate::message::preview;
+use super::Message;
 use crate::ui::preview::{preview_status_bar, status_muted_text};
 
 use super::{ascii_char, selected_byte, Hex};
@@ -15,8 +15,8 @@ pub fn view(
     _preview: &HexPreview,
     state: &Hex,
     file: &PreviewFile,
-) -> Element<'static, preview::Message> {
-    let mut items: Vec<Element<'static, preview::Message>> = vec![
+) -> Element<'static, Message> {
+    let mut items: Vec<Element<'static, Message>> = vec![
         text(bundle.tr(ids::PREVIEW_HEX))
             .size(FONT_SIZE_CAPTION)
             .style(status_muted_text)

@@ -2,14 +2,14 @@ use iced::widget::{container, row, text, Space};
 use iced::{alignment, Element, Fill, Font, Length};
 
 use crate::fluent::SPACE_SM;
-use crate::message::preview;
+use super::Message;
 use crate::ui::preview::status_muted_text;
 
 use super::{BYTE_WIDTH, BYTES_PER_LINE, FONT_SIZE, OFFSET_WIDTH, ASCII_WIDTH};
 use crate::fluent::SPACE_MD;
 
-pub fn view() -> Element<'static, preview::Message> {
-    let mut hex_headers: Vec<Element<'static, preview::Message>> =
+pub fn view() -> Element<'static, Message> {
+    let mut hex_headers: Vec<Element<'static, Message>> =
         Vec::with_capacity(BYTES_PER_LINE + 1);
     for i in 0..BYTES_PER_LINE {
         if i == 8 {

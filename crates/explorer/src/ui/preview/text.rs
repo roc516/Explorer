@@ -9,7 +9,6 @@ use iced::widget::scrollable::Direction;
 use iced::{Element, Fill, Length, Task};
 
 use crate::fluent::{HEIGHT_PREVIEW_BODY, HEIGHT_PREVIEW_STATUS_BAR, SPACE_LG};
-use crate::message::preview;
 
 use super::preview_message;
 
@@ -19,6 +18,22 @@ pub(crate) const LINE_HEIGHT: f32 = 20.0;
 pub(crate) const FONT_SIZE: f32 = 13.0;
 const OVERSCAN_LINES: usize = 4;
 const WINDOW_MARGIN_LINES: usize = 32;
+
+#[derive(Debug, Clone)]
+pub enum Message {
+    Scrolled(f32),
+    IndexLoaded {
+        id: u64,
+        result: Result<Vec<u64>, String>,
+    },
+    WindowLoaded {
+        id: u64,
+        start: usize,
+        result: Result<Vec<String>, String>,
+    },
+    EncodingSelected(TextEncoding),
+}
+
 
 #[derive(Debug, Clone)]
 struct LineWindow {
@@ -67,7 +82,7 @@ pub struct Text {
 }
 
 impl Text {
-    pub fn for_file(file: &PreviewFile) -> Option<(Self, Task<preview::Message>)> {
+    pub fn for_file(file: &PreviewFile) -> Option<(Self, Task<Message>)> {
         let PreviewKind::Text(preview) = &file.kind else {
             return None;
         };
@@ -90,7 +105,7 @@ impl Text {
         }
     }
 
-    pub fn on_scroll(&mut self, preview: &TextPreview, y: f32) -> Task<preview::Message> {
+    pub fn on_scroll(&mut self, preview: &TextPreview, y: f32) -> Task<Message> {
         self.scroll_y = y;
         self.request_window(preview)
     }
@@ -99,7 +114,7 @@ impl Text {
         &mut self,
         preview: &TextPreview,
         encoding: TextEncoding,
-    ) -> Task<preview::Message> {
+    ) -> Task<Message> {
         let previous = self.encoding;
         self.encoding = encoding;
         self.encoding_error = None;
@@ -125,7 +140,7 @@ impl Text {
         preview: &TextPreview,
         id: u64,
         result: Result<Vec<u64>, String>,
-    ) -> Task<preview::Message> {
+    ) -> Task<Message> {
         if id != self.load_id {
             return Task::none();
         }
@@ -169,7 +184,7 @@ impl Text {
         }
     }
 
-    fn start_index(&mut self, preview: &TextPreview) -> Task<preview::Message> {
+    fn start_index(&mut self, preview: &TextPreview) -> Task<Message> {
         self.indexing = true;
         self.load_error = None;
         self.load_id = self.load_id.wrapping_add(1);
@@ -178,11 +193,11 @@ impl Text {
         let preview = preview.clone();
         Task::perform(
             async move { (id, preview.build_line_index(encoding)) },
-            |(id, result)| preview::Message::TextIndexLoaded { id, result },
+            |(id, result)| Message::IndexLoaded { id, result },
         )
     }
 
-    fn request_window(&mut self, preview: &TextPreview) -> Task<preview::Message> {
+    fn request_window(&mut self, preview: &TextPreview) -> Task<Message> {
         let Some(offsets) = self.line_offsets.as_ref() else {
             return Task::none();
         };
@@ -228,7 +243,7 @@ impl Text {
                     preview.read_lines(&offsets, load_first, load_last, encoding),
                 )
             },
-            |(id, start, result)| preview::Message::TextWindowLoaded { id, start, result },
+            |(id, start, result)| Message::WindowLoaded { id, start, result },
         )
     }
 }
@@ -243,7 +258,7 @@ pub fn view(
     bundle: LanguageBundle,
     preview: &TextPreview,
     state: &Text,
-) -> Element<'static, preview::Message> {
+) -> Element<'static, Message> {
     if let Some(error) = &state.load_error {
         let message = if error == "preview-decode-failed" {
             bundle.tr(ids::PREVIEW_DECODE_FAILED)
@@ -254,11 +269,11 @@ pub fn view(
     }
 
     if state.indexing || state.line_offsets.is_none() {
-        return preview_message(bundle.tr(ids::PREVIEW_LOADING), false);
+        return crate::ui::loading::view_tr(bundle);
     }
 
     let Some(offsets) = &state.line_offsets else {
-        return preview_message(bundle.tr(ids::PREVIEW_LOADING), false);
+        return crate::ui::loading::view_tr(bundle);
     };
 
     if preview.size == 0 {
@@ -266,13 +281,13 @@ pub fn view(
     }
 
     let Some(window) = &state.window else {
-        return preview_message(bundle.tr(ids::PREVIEW_LOADING), false);
+        return crate::ui::loading::view_tr(bundle);
     };
 
     let line_count = offsets.len();
     let (first, last) = visible_line_range(state.scroll_y, line_count);
 
-    let mut rows: Vec<Element<'static, preview::Message>> = Vec::with_capacity(last - first + 2);
+    let mut rows: Vec<Element<'static, Message>> = Vec::with_capacity(last - first + 2);
     if first > 0 {
         rows.push(
             Space::new()
@@ -304,7 +319,7 @@ pub fn view(
         vertical: scrollable::Scrollbar::default(),
         horizontal: scrollable::Scrollbar::default(),
     })
-    .on_scroll(|viewport| preview::Message::TextScrolled(viewport.absolute_offset().y))
+    .on_scroll(|viewport| Message::Scrolled(viewport.absolute_offset().y))
     .width(Fill)
     .height(Fill)
     .into()

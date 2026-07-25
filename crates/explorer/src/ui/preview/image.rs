@@ -9,7 +9,6 @@ use crate::fluent::{
     DIALOG_WIDTH_PREVIEW, FONT_SIZE_CAPTION, HEIGHT_PREVIEW_BODY, HEIGHT_PREVIEW_STATUS_BAR,
     PAGE_PADDING_H, SPACE_LG, SPACE_MD, SPACE_SM, SPACE_XS,
 };
-use crate::message::preview;
 use crate::ui::style::{icon_button, secondary_button};
 use crate::widget::LucideIcon;
 
@@ -21,6 +20,15 @@ const ZOOM_STEP: f32 = 1.25;
 const WHEEL_STEP: f32 = 1.1;
 const ZOOM_BUTTON_SIZE: f32 = 24.0;
 const ZOOM_ICON_SIZE: f32 = 14.0;
+
+#[derive(Debug, Clone)]
+pub enum Message {
+    ZoomIn,
+    ZoomOut,
+    ZoomReset,
+    WheelZoom(f32),
+}
+
 
 #[derive(Debug, Clone)]
 pub struct Image {
@@ -81,7 +89,7 @@ impl Default for Image {
     }
 }
 
-pub fn view(preview: &ImagePreview, zoom: f32) -> Element<'static, preview::Message> {
+pub fn view(preview: &ImagePreview, zoom: f32) -> Element<'static, Message> {
     let display_w = (preview.width as f32 * zoom).max(1.0);
     let display_h = (preview.height as f32 * zoom).max(1.0);
 
@@ -92,7 +100,7 @@ pub fn view(preview: &ImagePreview, zoom: f32) -> Element<'static, preview::Mess
             .content_fit(ContentFit::Fill),
     )
     .on_scroll(|delta| {
-        preview::Message::ImageWheelZoom(scroll_delta_to_zoom_factor(delta))
+        Message::WheelZoom(scroll_delta_to_zoom_factor(delta))
     });
 
     let needs_scroll = display_w > viewport_width() || display_h > viewport_height();
@@ -125,7 +133,7 @@ pub fn status_bar(
     image_state: &Image,
     image: &ImagePreview,
     file: &PreviewFile,
-) -> Element<'static, preview::Message> {
+) -> Element<'static, Message> {
     let zoom_label = format_zoom_percent(image_state.zoom, image_state.fit_zoom);
     let dimensions = format!("{} × {}", image.width, image.height);
     let size_label = bundle.format_size(file.size);
@@ -133,11 +141,11 @@ pub fn status_bar(
 
     container(
         row![
-            zoom_button(Icon::ZoomOut, preview::Message::ImageZoomOut),
+            zoom_button(Icon::ZoomOut, Message::ZoomOut),
             text(zoom_label)
                 .size(FONT_SIZE_CAPTION)
                 .style(status_muted_text),
-            zoom_button(Icon::ZoomIn, preview::Message::ImageZoomIn),
+            zoom_button(Icon::ZoomIn, Message::ZoomIn),
             button(
                 container(text(fit_label).size(FONT_SIZE_CAPTION).line_height(iced::Pixels(16.0)))
                     .height(Length::Fixed(ZOOM_BUTTON_SIZE))
@@ -145,7 +153,7 @@ pub fn status_bar(
                     .align_x(alignment::Horizontal::Center)
                     .align_y(alignment::Vertical::Center),
             )
-            .on_press(preview::Message::ImageZoomReset)
+            .on_press(Message::ZoomReset)
             .height(Length::Fixed(ZOOM_BUTTON_SIZE))
             .padding(0)
             .style(secondary_button),
@@ -208,7 +216,7 @@ fn scroll_delta_to_zoom_factor(delta: mouse::ScrollDelta) -> f32 {
     }
 }
 
-fn zoom_button(icon: Icon, message: preview::Message) -> Element<'static, preview::Message> {
+fn zoom_button(icon: Icon, message: Message) -> Element<'static, Message> {
     button(
         container(LucideIcon::new(icon).size(ZOOM_ICON_SIZE).muted(0.72))
             .width(Length::Fixed(ZOOM_BUTTON_SIZE))
