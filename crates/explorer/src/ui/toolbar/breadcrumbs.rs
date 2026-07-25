@@ -1,5 +1,5 @@
-use explorer_core::EPath;
-use explorer_app::breadcrumbs;
+use explorer_core::{EPath, Mounter};
+use explorer_app::{breadcrumbs, mount_root_label};
 use iced::window as iced_window;
 use iced::widget::{button, container, mouse_area, row, scrollable, text};
 use iced::{alignment, Element, Fill, Theme};
@@ -13,7 +13,10 @@ pub fn breadcrumb_bar(
     current_path: &EPath,
     window_id: iced_window::Id,
 ) -> Element<'static, AppMessage> {
-    let crumbs = breadcrumbs(current_path);
+    let root_label = Mounter::mount_ref(current_path)
+        .ok()
+        .map(|(container, _)| mount_root_label(container));
+    let crumbs = breadcrumbs(current_path.path(), root_label);
     let last_index = crumbs.len().saturating_sub(1);
     let mut items: Vec<Element<'static, AppMessage>> = Vec::new();
 

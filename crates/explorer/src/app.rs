@@ -492,10 +492,13 @@ impl Explorer {
     }
 
     fn update_tree(&mut self, message: directory_tree::Message) -> Task<window_msg::Message> {
-        let (task, action) = self.directory_tree.update(message);
+        let (task, action) = self
+            .directory_tree
+            .update(message, &self.model.current_path);
         let mut tasks = vec![task.map(window_msg::Message::Tree)];
 
-        if let Some(TreeAction::Navigate(path)) = action {
+        if let Some(TreeAction::Navigate(nav)) = action {
+            let path = self.model.current_path.with_navigation_path(nav);
             if let Some(load_path) = self.model.navigate(path) {
                 self.toolbar.push_history(load_path.navigation_path());
                 tasks.push(self.load_directory(load_path));

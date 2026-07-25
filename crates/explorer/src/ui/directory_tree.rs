@@ -1,5 +1,7 @@
 mod icons;
 
+use std::path::PathBuf;
+
 use explorer_core::{BlockDevice, EPath};
 use explorer_app::{load_tree_children, DirectoryTree as DirectoryTreeState, TreeNode, TreeRow};
 use iced::widget::{button, column, container, mouse_area, row, scrollable, text, Space};
@@ -12,9 +14,9 @@ use crate::fluent::{
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Toggle(EPath),
-    Select(EPath),
-    ChildrenLoaded(EPath, Result<Vec<TreeNode>, String>),
+    Toggle(PathBuf),
+    Select(PathBuf),
+    ChildrenLoaded(PathBuf, Result<Vec<TreeNode>, String>),
 }
 
 const INDENT: f32 = 16.0;
@@ -23,7 +25,7 @@ const ICON_WIDTH: f32 = 18.0;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
-    Navigate(EPath),
+    Navigate(PathBuf),
 }
 
 pub struct DirectoryTree {
@@ -47,13 +49,17 @@ impl DirectoryTree {
         }
     }
 
-    pub fn update(&mut self, message: Message) -> (Task<Message>, Option<Action>) {
+    pub fn update(
+        &mut self,
+        message: Message,
+        context: &EPath,
+    ) -> (Task<Message>, Option<Action>) {
         match message {
             Message::Toggle(path) => {
                 let task = self
                     .state
                     .toggle(path)
-                    .map(load_children_task)
+                    .map(|nav| load_children_task(context, nav))
                     .unwrap_or_else(Task::none);
                 (task, None)
             }
@@ -69,8 +75,12 @@ impl DirectoryTree {
     }
 
     pub fn sync_path(&mut self, path: &EPath) -> Task<Message> {
-        let pending = self.state.sync_selection(path);
-        Task::batch(pending.into_iter().map(load_children_task))
+        let pending = self.state.sync_selection(path.path());
+        Task::batch(
+            pending
+                .into_iter()
+                .map(|nav| load_children_task(path, nav)),
+        )
     }
 
     pub fn view(&self, bundle: explorer_app::LanguageBundle) -> Element<'_, Message> {
@@ -102,13 +112,11 @@ impl Default for DirectoryTree {
     }
 }
 
-fn load_children_task(path: EPath) -> Task<Message> {
+fn load_children_task(context: &EPath, nav: PathBuf) -> Task<Message> {
+    let epath = context.with_navigation_path(nav.clone());
     Task::perform(
-        {
-            let load_path = path.clone();
-            async move { load_tree_children(&load_path) }
-        },
-        move |result| Message::ChildrenLoaded(path, result),
+        async move { load_tree_children(&epath) },
+        move |result| Message::ChildrenLoaded(nav, result),
     )
 }
 

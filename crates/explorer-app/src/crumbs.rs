@@ -1,6 +1,6 @@
 use std::path::{Component, Path, PathBuf};
 
-use explorer_core::filesystem::{DeviceId, EPath, Mounter};
+use explorer_core::filesystem::DeviceId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathBreadcrumb {
@@ -9,28 +9,37 @@ pub struct PathBreadcrumb {
     pub label: String,
 }
 
-/// Build breadcrumbs for an EPath.
+/// Build breadcrumbs for a disk path or a mount-internal path.
 ///
-/// Mount paths only include segments inside the archive (no host container crumbs).
-pub fn breadcrumbs(path: &EPath) -> Vec<PathBreadcrumb> {
-    if Mounter::is_mount(path) {
-        mount_breadcrumbs(path)
-    } else {
-        path.disk_ref()
-            .map(disk_breadcrumbs)
-            .unwrap_or_default()
+/// - Disk: pass the absolute path and `root_label = None`.
+/// - Mount: pass the path inside the archive and `root_label = Some(archive name)`.
+pub fn breadcrumbs(path: &Path, root_label: Option<String>) -> Vec<PathBreadcrumb> {
+    match root_label {
+        Some(label) => mount_breadcrumbs(label, path),
+        None => disk_breadcrumbs(path),
     }
 }
 
-fn mount_breadcrumbs(path: &EPath) -> Vec<PathBreadcrumb> {
-    let (container, inner) = match Mounter::mount_ref(path) {
-        Ok(parts) => parts,
-        Err(_) => return Vec::new(),
-    };
+/// Label for the mount-root crumb (usually the archive file name).
+pub fn mount_root_label(container: &DeviceId) -> String {
+    match container {
+        DeviceId::Host(path) => path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .filter(|name| !name.is_empty())
+            .unwrap_or_else(|| path.display().to_string()),
+        DeviceId::Nested { entry, .. } => entry
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .filter(|name| !name.is_empty())
+            .unwrap_or_else(|| entry.display().to_string()),
+    }
+}
 
+fn mount_breadcrumbs(root_label: String, inner: &Path) -> Vec<PathBreadcrumb> {
     let mut segments = vec![PathBreadcrumb {
         path: PathBuf::new(),
-        label: mount_root_label(container),
+        label: root_label,
     }];
     let mut acc = PathBuf::new();
 
@@ -45,21 +54,6 @@ fn mount_breadcrumbs(path: &EPath) -> Vec<PathBreadcrumb> {
     }
 
     segments
-}
-
-fn mount_root_label(container: &DeviceId) -> String {
-    match container {
-        DeviceId::Host(path) => path
-            .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .filter(|name| !name.is_empty())
-            .unwrap_or_else(|| path.display().to_string()),
-        DeviceId::Nested { entry, .. } => entry
-            .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .filter(|name| !name.is_empty())
-            .unwrap_or_else(|| entry.display().to_string()),
-    }
 }
 
 fn disk_breadcrumbs(path: &Path) -> Vec<PathBreadcrumb> {
