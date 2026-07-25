@@ -80,11 +80,10 @@ pub fn is_mountable(device: &BlockDevice) -> bool {
         .is_some()
 }
 
-pub fn list_drives() -> Vec<crate::filesystem::Volume> {
+pub fn list_drives() -> Vec<crate::entry::DirEntry> {
     use std::path::Path;
 
     use crate::entry::FsEntry;
-    use crate::filesystem::Volume;
 
     let Some(host) = try_host() else {
         return Vec::new();
@@ -102,7 +101,7 @@ pub fn list_drives() -> Vec<crate::filesystem::Volume> {
     entries
         .into_iter()
         .filter_map(|entry| match entry {
-            FsEntry::Dir(dir) => Some(Volume::new(dir.path, dir.name)),
+            FsEntry::Dir(dir) => Some(dir),
             FsEntry::File(_) => None,
         })
         .collect()

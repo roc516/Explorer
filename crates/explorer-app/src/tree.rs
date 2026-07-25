@@ -1,13 +1,27 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
-use explorer_core::filesystem::{list_drives, BlockDevice, EPath, Mounter, Reader, Volume};
+use explorer_core::filesystem::{list_drives, BlockDevice, Mounter, MountedDevice};
+use explorer_core::{DirEntry, Directory, FsEntry};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct TreeNode {
-    pub name: String,
-    /// In-window navigation path (disk absolute, or relative to mount root).
-    pub path: PathBuf,
+    entry: DirEntry,
+}
+
+impl TreeNode {
+    pub fn from_dir(entry: DirEntry) -> Self {
+        Self { entry }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.entry.name
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.entry.path
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,10 +47,7 @@ impl DirectoryTree {
     pub fn new() -> Self {
         let roots = list_drives()
             .into_iter()
-            .map(|volume: Volume| TreeNode {
-                name: volume.label,
-                path: volume.path,
-            })
+            .map(TreeNode::from_dir)
             .collect();
 
         Self::with_roots(roots)
@@ -50,15 +61,18 @@ impl DirectoryTree {
             name
         };
 
-        // Ensure the archive is mounted; tree keys use navigation paths only.
-        let _root = Mounter::mount_root(device).unwrap_or_else(|message| {
+        let root = Mounter::mount_root(device).unwrap_or_else(|message| {
             panic!("unsupported archive: {message}")
         });
+        let mounted = Mounter::device(&root).unwrap_or_else(|message| {
+            panic!("mount device unavailable: {message}")
+        });
 
-        Self::with_roots(vec![TreeNode {
+        Self::with_roots(vec![TreeNode::from_dir(DirEntry::new(
             name,
-            path: PathBuf::new(),
-        }])
+            PathBuf::new(),
+            Arc::new(MountedRoot(mounted)),
+        ))])
     }
 
     fn with_roots(roots: Vec<TreeNode>) -> Self {
@@ -77,7 +91,8 @@ impl DirectoryTree {
         rows
     }
 
-    pub fn toggle(&mut self, path: PathBuf) -> Option<PathBuf> {
+    /// Expand/collapse. When expand needs a load, returns the directory to `list`.
+    pub fn toggle(&mut self, path: PathBuf) -> Option<DirEntry> {
         if self.expanded.contains(&path) {
             self.expanded.remove(&path);
             return None;
@@ -87,8 +102,7 @@ impl DirectoryTree {
         if self.children.contains_key(&path) {
             None
         } else {
-            self.loading.insert(path.clone());
-            Some(path)
+            self.begin_load(&path)
         }
     }
 
@@ -100,7 +114,7 @@ impl DirectoryTree {
         &mut self,
         path: PathBuf,
         result: Result<Vec<TreeNode>, String>,
-    ) {
+    ) -> Option<DirEntry> {
         self.loading.remove(&path);
 
         match result {
@@ -109,39 +123,63 @@ impl DirectoryTree {
             }
             Err(_) => {
                 self.expanded.remove(&path);
+                return None;
             }
         }
+
+        // Continue expanding toward the selected path after a parent finishes loading.
+        self.selected
+            .clone()
+            .and_then(|selected| self.next_sync_load(selected.as_path()))
     }
 
-    pub fn sync_selection(&mut self, current: &Path) -> Vec<PathBuf> {
+    /// Mark ancestors expanded and return the next directory that still needs listing.
+    pub fn sync_selection(&mut self, current: &Path) -> Option<DirEntry> {
         self.selected = Some(current.to_path_buf());
+        self.next_sync_load(current)
+    }
 
-        let mut pending = Vec::new();
+    fn next_sync_load(&mut self, current: &Path) -> Option<DirEntry> {
         for path in ancestors_and_self(current) {
             self.expanded.insert(path.clone());
-            if !self.children.contains_key(&path) && !self.loading.contains(&path) {
-                self.loading.insert(path.clone());
-                pending.push(path);
+            if self.children.contains_key(&path) || self.loading.contains(&path) {
+                continue;
             }
+            return self.begin_load(&path);
         }
-        pending
+        None
+    }
+
+    fn begin_load(&mut self, path: &Path) -> Option<DirEntry> {
+        let entry = self.find_entry(path)?.clone();
+        self.loading.insert(path.to_path_buf());
+        Some(entry)
+    }
+
+    fn find_entry(&self, path: &Path) -> Option<&DirEntry> {
+        self.roots
+            .iter()
+            .chain(self.children.values().flatten())
+            .find(|node| node.path() == path)
+            .map(|node| &node.entry)
     }
 
     fn append_rows(&self, nodes: &[TreeNode], depth: usize, rows: &mut Vec<TreeRow>) {
         for node in nodes {
-            let expanded = self.expanded.contains(&node.path);
+            let path = node.path().to_path_buf();
+            let expanded = self.expanded.contains(&path);
             rows.push(TreeRow {
-                path: node.path.clone(),
-                name: node.name.clone(),
+                path: path.clone(),
+                name: node.name().to_string(),
                 depth,
                 expanded,
-                loading: self.loading.contains(&node.path),
-                selected: self.selected.as_ref() == Some(&node.path),
-                expandable: self.is_expandable(&node.path),
+                loading: self.loading.contains(&path),
+                selected: self.selected.as_ref() == Some(&path),
+                expandable: self.is_expandable(&path),
             });
 
             if expanded {
-                if let Some(children) = self.children.get(&node.path) {
+                if let Some(children) = self.children.get(&path) {
                     self.append_rows(children, depth + 1, rows);
                 }
             }
@@ -166,18 +204,24 @@ impl Default for DirectoryTree {
     }
 }
 
-/// List directory children for the tree. `path` is a full [`EPath`] used only for IO.
-pub fn load_tree_children(path: &EPath) -> Result<Vec<TreeNode>, String> {
-    Ok(Reader::read_directory(path)?
+/// List directory children for the tree via the retained [`DirEntry`] handle.
+pub fn load_tree_children(dir: &DirEntry) -> Result<Vec<TreeNode>, String> {
+    Ok(dir
+        .list()?
         .into_iter()
         .filter_map(|entry| match entry {
-            explorer_core::FsEntry::Dir(d) => Some(TreeNode {
-                name: d.name,
-                path: d.path,
-            }),
-            explorer_core::FsEntry::File(_) => None,
+            FsEntry::Dir(d) => Some(TreeNode::from_dir(d)),
+            FsEntry::File(_) => None,
         })
         .collect())
+}
+
+struct MountedRoot(Arc<dyn MountedDevice>);
+
+impl Directory for MountedRoot {
+    fn list(&self) -> Result<Vec<FsEntry>, String> {
+        self.0.list()
+    }
 }
 
 fn ancestors_and_self(path: &Path) -> Vec<PathBuf> {

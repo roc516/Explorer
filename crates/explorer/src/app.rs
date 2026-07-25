@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use explorer_core::{BlockDevice, EPath};
+use explorer_core::BlockDevice;
 use explorer_app::{
     detect_system_locale, ids, ExplorerModel, Language, Locale,
 };
@@ -162,7 +162,7 @@ impl App {
             .get(&window_id)
             .map(|window| {
                 let title = window.model.bundle.tr(ids::WINDOW_TITLE);
-                format!("{title} — {}", window.model.current_path.display())
+                format!("{title} — {}", window.model.display_path())
             })
             .unwrap_or_else(|| "Explorer".to_string())
     }
@@ -174,7 +174,7 @@ impl App {
             Launch::Archive(device) => Explorer::new_mounted(device, locale),
         };
 
-        let load_path = explorer.model.current_path.clone();
+        let load_path = explorer.model.location().clone();
         self.focused_window = Some(id);
         self.windows.insert(id, explorer);
 
@@ -266,7 +266,7 @@ impl Explorer {
     fn new_local(locale: Locale) -> Self {
         let mut model = ExplorerModel::new_local();
         model.set_locale(locale);
-        let toolbar = Toolbar::new(&model.current_path);
+        let toolbar = Toolbar::new(&model);
         Self {
             model,
             toolbar,
@@ -281,7 +281,7 @@ impl Explorer {
     fn new_mounted(device: BlockDevice, locale: Locale) -> Self {
         let mut model = ExplorerModel::new_mounted(device.clone());
         model.set_locale(locale);
-        let toolbar = Toolbar::new(&model.current_path);
+        let toolbar = Toolbar::new(&model);
         Self {
             model,
             toolbar,
@@ -298,8 +298,7 @@ impl Explorer {
         let main = column![
             self.toolbar.view(
                 bundle,
-                &self.model.current_path,
-                self.model.can_go_up(),
+                &self.model,
                 window_id,
             ),
             rule::horizontal(1),
@@ -339,7 +338,8 @@ impl Explorer {
         stack(layers).width(Fill).height(Fill).into()
     }
 
-    fn load_directory(&self, path: EPath) -> Task<window_msg::Message> {
+    fn load_directory(&self, path: std::path::PathBuf) -> Task<window_msg::Message> {
+        let path = self.model.with_navigation_path(path);
         file_list::load_directory_task(path).map(window_msg::Message::FileList)
     }
 
@@ -347,7 +347,6 @@ impl Explorer {
         let (task, action) = self.toolbar.update(message, &mut self.model);
         let mut tasks = vec![task];
         if let Some(ToolbarAction::Load(path)) = action {
-            let path = self.model.current_path.with_navigation_path(path);
             tasks.push(self.load_directory(path));
         }
         Task::batch(tasks)
@@ -363,7 +362,7 @@ impl Explorer {
         if let Some(action) = action {
             match action {
                 FileListAction::Navigated(path) => {
-                    self.toolbar.push_history(path.navigation_path());
+                    self.toolbar.push_history(path.clone());
                     tasks.push(
                         self.directory_tree
                             .sync_path(&path)
@@ -371,9 +370,8 @@ impl Explorer {
                     );
                 }
                 FileListAction::DirectoryLoaded(path) => {
-                    if let Some(reveal) = self.toolbar.on_directory_loaded(&path) {
-                        self.model
-                            .select_path(&path.with_navigation_path(reveal));
+                    if let Some(reveal) = self.toolbar.on_directory_loaded(&self.model) {
+                        self.model.select_path(&reveal);
                     }
                     tasks.push(
                         self.directory_tree
@@ -492,15 +490,12 @@ impl Explorer {
     }
 
     fn update_tree(&mut self, message: directory_tree::Message) -> Task<window_msg::Message> {
-        let (task, action) = self
-            .directory_tree
-            .update(message, &self.model.current_path);
+        let (task, action) = self.directory_tree.update(message);
         let mut tasks = vec![task.map(window_msg::Message::Tree)];
 
         if let Some(TreeAction::Navigate(nav)) = action {
-            let path = self.model.current_path.with_navigation_path(nav);
-            if let Some(load_path) = self.model.navigate(path) {
-                self.toolbar.push_history(load_path.navigation_path());
+            if let Some(load_path) = self.model.navigate(nav) {
+                self.toolbar.push_history(load_path.clone());
                 tasks.push(self.load_directory(load_path));
             }
         }
@@ -528,7 +523,7 @@ impl Explorer {
                 if self.toolbar.is_address_editing() =>
             {
                 self.toolbar
-                    .cancel_address_edit(&self.model.current_path);
+                    .cancel_address_edit(&self.model);
                 Task::none()
             }
             _ if self.preview_state.is_some() || settings_open => Task::none(),

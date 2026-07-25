@@ -32,7 +32,7 @@ pub(crate) fn apply_sort(model: &mut ExplorerModel, sort: SortState) {
 
     let selected_path = model
         .selected_index
-        .and_then(|index| model.entries.get(index).map(|entry| entry.path().clone()));
+        .and_then(|index| model.entries.get(index).map(|entry| entry.path().to_path_buf()));
 
     model
         .entries
@@ -42,7 +42,7 @@ pub(crate) fn apply_sort(model: &mut ExplorerModel, sort: SortState) {
         model
             .entries
             .iter()
-            .position(|entry| entry.path() == &path)
+            .position(|entry| entry.path() == path.as_path())
     });
 }
 

@@ -8,7 +8,7 @@ mod sort;
 mod task;
 
 pub use message::{Action, Message};
-pub use task::load_directory_task;
+pub use task::{load_directory_from_dir, load_directory_task};
 
 use explorer_app::{ids, ExplorerModel};
 use iced::event;
@@ -56,10 +56,13 @@ impl FileList {
             Message::EntryDoubleClicked(index) => {
                 let action = model.open_entry(index);
                 let (task, file_action) = match action {
-                    Some(explorer_app::OpenEntryAction::Navigate(path)) => (
-                        load_directory_task(path.clone()),
-                        Some(Action::Navigated(path)),
-                    ),
+                    Some(explorer_app::OpenEntryAction::Navigate(dir)) => {
+                        let path = dir.path.clone();
+                        (
+                            load_directory_from_dir(dir),
+                            Some(Action::Navigated(path)),
+                        )
+                    }
                     Some(explorer_app::OpenEntryAction::Preview(entry)) => {
                         (Task::none(), Some(Action::PreviewFile(entry)))
                     }

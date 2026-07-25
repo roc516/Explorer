@@ -1,5 +1,5 @@
-use explorer_core::{EPath, Mounter};
-use explorer_app::{breadcrumbs, mount_root_label};
+use explorer_core::Mounter;
+use explorer_app::{breadcrumbs, mount_root_label, ExplorerModel};
 use iced::window as iced_window;
 use iced::widget::{button, container, mouse_area, row, scrollable, text};
 use iced::{alignment, Element, Fill, Theme};
@@ -10,13 +10,13 @@ use crate::message::{window as window_msg, Message as AppMessage};
 use super::Message;
 
 pub fn breadcrumb_bar(
-    current_path: &EPath,
+    model: &ExplorerModel,
     window_id: iced_window::Id,
 ) -> Element<'static, AppMessage> {
-    let root_label = Mounter::mount_ref(current_path)
+    let root_label = Mounter::mount_ref(model.location())
         .ok()
         .map(|(container, _)| mount_root_label(container));
-    let crumbs = breadcrumbs(current_path.path(), root_label);
+    let crumbs = breadcrumbs(&model.current_path, root_label);
     let last_index = crumbs.len().saturating_sub(1);
     let mut items: Vec<Element<'static, AppMessage>> = Vec::new();
 

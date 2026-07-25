@@ -1,6 +1,7 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use explorer_core::filesystem::{BlockDevice, EPath, Mounter};
+use explorer_core::filesystem::{BlockDevice, Mounter, EPath};
+use explorer_core::DirEntry;
 
 use crate::entry::FileEntry;
 use crate::i18n::{ids, LanguageBundle};
@@ -24,7 +25,8 @@ pub enum StatusInfo {
 
 #[derive(Debug, Clone)]
 pub enum OpenEntryAction {
-    Navigate(EPath),
+    /// Navigate into a listed directory (load via [`DirEntry::list`]).
+    Navigate(DirEntry),
     Preview(explorer_core::FsEntry),
     OpenArchive(BlockDevice),
     OpenedSystem { name: String },
@@ -32,7 +34,10 @@ pub enum OpenEntryAction {
 
 #[derive(Debug, Clone)]
 pub struct ExplorerModel {
-    pub current_path: EPath,
+    /// In-window navigation path (disk absolute, or relative to mount root).
+    pub current_path: PathBuf,
+    /// Full location for IO / mount identity (`path` mirrors [`Self::current_path`]).
+    location: EPath,
     pub entries: Vec<FileEntry>,
     pub selected_index: Option<usize>,
     pub loading: bool,
@@ -49,22 +54,23 @@ impl ExplorerModel {
             .unwrap_or_else(|_| {
                 std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"))
             });
-        Self::with_path(EPath::local(initial))
+        Self::with_location(EPath::local(initial))
     }
 
     pub fn new_mounted(device: BlockDevice) -> Self {
-        Self::with_path(
+        Self::with_location(
             Mounter::mount_root(device).unwrap_or_else(|message| {
                 panic!("unsupported archive: {message}")
             }),
         )
     }
 
-    fn with_path(initial_path: EPath) -> Self {
+    fn with_location(location: EPath) -> Self {
         let bundle = LanguageBundle::new(crate::i18n::Locale::En);
 
         Self {
-            current_path: initial_path,
+            current_path: location.navigation_path(),
+            location,
             entries: Vec::new(),
             selected_index: None,
             loading: true,
@@ -76,6 +82,27 @@ impl ExplorerModel {
 
     pub fn new() -> Self {
         Self::new_local()
+    }
+
+    /// Window location used at IO / address-bar boundaries.
+    pub fn location(&self) -> &EPath {
+        &self.location
+    }
+
+    pub fn display_path(&self) -> String {
+        self.location.display()
+    }
+
+    pub fn internal_display(&self) -> String {
+        self.location.internal_display()
+    }
+
+    pub fn is_mount(&self) -> bool {
+        Mounter::is_mount(&self.location)
+    }
+
+    pub fn with_navigation_path(&self, path: PathBuf) -> EPath {
+        self.location.with_navigation_path(path)
     }
 
     pub fn set_locale(&mut self, locale: crate::i18n::Locale) {
@@ -101,7 +128,7 @@ impl ExplorerModel {
     }
 
     pub fn can_go_up(&self) -> bool {
-        self.current_path.parent().is_some()
+        self.location.parent().is_some()
     }
 
     pub fn begin_load(&mut self) {
@@ -110,14 +137,16 @@ impl ExplorerModel {
         self.status = StatusInfo::Loading;
     }
 
-    pub fn navigate(&mut self, path: EPath) -> Option<EPath> {
-        if !path.exists() {
+    /// Validate and begin loading a navigation path in this window.
+    pub fn navigate(&mut self, path: PathBuf) -> Option<PathBuf> {
+        let target = self.location.with_navigation_path(path.clone());
+        if !target.exists() {
             self.error = Some(ModelError::InvalidPath);
             self.status = StatusInfo::Path(self.bundle.tr(ids::ERROR_INVALID_PATH));
             return None;
         }
 
-        if !path.is_directory() {
+        if !target.is_directory() {
             self.error = Some(ModelError::NotDirectory);
             self.status = StatusInfo::Path(self.bundle.tr(ids::ERROR_NOT_DIRECTORY));
             return None;
@@ -127,12 +156,18 @@ impl ExplorerModel {
         Some(path)
     }
 
-    pub fn go_up(&mut self) -> Option<EPath> {
-        let parent = self.current_path.parent()?;
-        self.navigate(parent)
+    /// Begin loading a listed directory (skip re-validation; entry came from a listing).
+    pub fn navigate_dir(&mut self, dir: DirEntry) -> PathBuf {
+        self.begin_load();
+        dir.path.clone()
     }
 
-    pub fn refresh(&mut self) -> Option<EPath> {
+    pub fn go_up(&mut self) -> Option<PathBuf> {
+        let parent = self.location.parent()?;
+        self.navigate(parent.navigation_path())
+    }
+
+    pub fn refresh(&mut self) -> Option<PathBuf> {
         self.begin_load();
         Some(self.current_path.clone())
     }
@@ -141,20 +176,23 @@ impl ExplorerModel {
         self.selected_index = Some(index);
     }
 
-    pub fn select_path(&mut self, path: &EPath) {
+    pub fn select_path(&mut self, path: &Path) {
         self.selected_index = self.entries.iter().position(|entry| entry.path() == path);
     }
 
     pub fn open_entry(&mut self, index: usize) -> Option<OpenEntryAction> {
         let entry = self.entries.get(index)?;
 
-        if entry.is_dir() {
-            return self
-                .navigate(entry.path().clone())
-                .map(OpenEntryAction::Navigate);
+        if let Some(dir) = entry.as_dir() {
+            let dir = dir.clone();
+            self.navigate_dir(dir.clone());
+            return Some(OpenEntryAction::Navigate(dir));
         }
 
-        if let Some(archive) = entry.path().as_mountable_device() {
+        let epath = self
+            .location
+            .with_navigation_path(entry.path().to_path_buf());
+        if let Some(archive) = epath.as_mountable_device() {
             return Some(OpenEntryAction::OpenArchive(archive));
         }
 
@@ -162,7 +200,7 @@ impl ExplorerModel {
             return Some(OpenEntryAction::Preview(entry.fs_entry().clone()));
         }
 
-        match entry.path().open_with_system() {
+        match preview::open_with_system(entry.fs_entry()) {
             Ok(()) => {
                 self.status = StatusInfo::Opened {
                     name: entry.name().to_string(),
@@ -181,11 +219,12 @@ impl ExplorerModel {
 
     pub fn on_directory_loaded(
         &mut self,
-        result: Result<(EPath, Vec<FileEntry>), String>,
+        result: Result<(PathBuf, Vec<FileEntry>), String>,
     ) {
         self.loading = false;
         match result {
             Ok((path, entries)) => {
+                self.location = self.location.with_navigation_path(path.clone());
                 self.current_path = path;
                 self.entries = entries;
                 self.selected_index = None;

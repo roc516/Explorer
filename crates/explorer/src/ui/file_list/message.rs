@@ -1,4 +1,6 @@
-use explorer_core::{BlockDevice, EPath, FsEntry};
+use std::path::PathBuf;
+
+use explorer_core::{BlockDevice, FsEntry};
 use explorer_app::FileEntry;
 
 use super::columns::Column;
@@ -7,7 +9,7 @@ use super::columns::Column;
 pub enum Message {
     EntryClicked(usize),
     EntryDoubleClicked(usize),
-    DirectoryLoaded(Result<(EPath, Vec<FileEntry>), String>),
+    DirectoryLoaded(Result<(PathBuf, Vec<FileEntry>), String>),
     ColumnResizeStarted(Column),
     ColumnResizeMoved(f32),
     ColumnResizeEnded,
@@ -17,9 +19,9 @@ pub enum Message {
 #[derive(Debug, Clone)]
 pub enum Action {
     /// User navigated into a directory (push history + sync tree).
-    Navigated(EPath),
+    Navigated(PathBuf),
     /// Directory listing finished (sync address bar + tree).
-    DirectoryLoaded(EPath),
+    DirectoryLoaded(PathBuf),
     PreviewFile(FsEntry),
     OpenArchive(BlockDevice),
 }

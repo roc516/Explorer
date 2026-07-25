@@ -13,7 +13,7 @@ impl StatusBar {
     }
 
     pub fn view(&self, model: &ExplorerModel) -> Element<'static, Message> {
-        let path_text = model.current_path.display().to_string();
+        let path_text = model.display_path();
 
         container(
             row![

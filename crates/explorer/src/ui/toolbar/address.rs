@@ -1,4 +1,4 @@
-use explorer_core::EPath;
+use explorer_app::ExplorerModel;
 use iced::window as iced_window;
 use iced::widget::{container, text_input};
 use iced::{alignment, Element, Fill};
@@ -15,7 +15,7 @@ pub fn address_bar<'a>(
     editing: bool,
     address_input: &'a str,
     placeholder: String,
-    current_path: &EPath,
+    model: &'a ExplorerModel,
     window_id: iced_window::Id,
 ) -> Element<'a, AppMessage> {
     container(if editing {
@@ -35,7 +35,7 @@ pub fn address_bar<'a>(
             .width(Fill)
             .into()
     } else {
-        breadcrumb_bar(current_path, window_id)
+        breadcrumb_bar(model, window_id)
     })
     .padding([0.0, SPACE_MD])
     .width(Fill)

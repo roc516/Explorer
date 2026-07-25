@@ -2,7 +2,7 @@ mod icons;
 
 use std::path::PathBuf;
 
-use explorer_core::{BlockDevice, EPath};
+use explorer_core::{BlockDevice, DirEntry};
 use explorer_app::{load_tree_children, DirectoryTree as DirectoryTreeState, TreeNode, TreeRow};
 use iced::widget::{button, column, container, mouse_area, row, scrollable, text, Space};
 use iced::{alignment, Element, Fill, Length, Task, Theme};
@@ -49,17 +49,13 @@ impl DirectoryTree {
         }
     }
 
-    pub fn update(
-        &mut self,
-        message: Message,
-        context: &EPath,
-    ) -> (Task<Message>, Option<Action>) {
+    pub fn update(&mut self, message: Message) -> (Task<Message>, Option<Action>) {
         match message {
             Message::Toggle(path) => {
                 let task = self
                     .state
                     .toggle(path)
-                    .map(|nav| load_children_task(context, nav))
+                    .map(load_children_task)
                     .unwrap_or_else(Task::none);
                 (task, None)
             }
@@ -68,19 +64,21 @@ impl DirectoryTree {
                 (Task::none(), Some(Action::Navigate(path)))
             }
             Message::ChildrenLoaded(path, result) => {
-                self.state.on_children_loaded(path, result);
-                (Task::none(), None)
+                let task = self
+                    .state
+                    .on_children_loaded(path, result)
+                    .map(load_children_task)
+                    .unwrap_or_else(Task::none);
+                (task, None)
             }
         }
     }
 
-    pub fn sync_path(&mut self, path: &EPath) -> Task<Message> {
-        let pending = self.state.sync_selection(path.path());
-        Task::batch(
-            pending
-                .into_iter()
-                .map(|nav| load_children_task(path, nav)),
-        )
+    pub fn sync_path(&mut self, path: &std::path::Path) -> Task<Message> {
+        self.state
+            .sync_selection(path)
+            .map(load_children_task)
+            .unwrap_or_else(Task::none)
     }
 
     pub fn view(&self, bundle: explorer_app::LanguageBundle) -> Element<'_, Message> {
@@ -112,10 +110,10 @@ impl Default for DirectoryTree {
     }
 }
 
-fn load_children_task(context: &EPath, nav: PathBuf) -> Task<Message> {
-    let epath = context.with_navigation_path(nav.clone());
+fn load_children_task(dir: DirEntry) -> Task<Message> {
+    let nav = dir.path.clone();
     Task::perform(
-        async move { load_tree_children(&epath) },
+        async move { load_tree_children(&dir) },
         move |result| Message::ChildrenLoaded(nav, result),
     )
 }
@@ -149,12 +147,12 @@ fn view_row(row: TreeRow) -> Element<'static, Message> {
     )
     .height(Length::Fixed(HEIGHT_LIST_ROW))
     .width(Fill)
-    .padding([0.0, SPACE_XS])
     .style(if row.selected {
         selected_row_container
     } else {
         normal_row_container
     })
+    .padding([0.0, SPACE_XS])
     .into()
 }
 
