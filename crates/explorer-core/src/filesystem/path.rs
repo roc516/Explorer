@@ -1,12 +1,8 @@
 mod access;
 mod mounter;
 mod epath;
-mod reader;
 mod util;
-mod nodes;
 
 pub use mounter::Mounter;
-pub use epath::{disk_path, EPath};
-pub use reader::{mount_entry_name, Reader};
-pub use util::{extension_of, file_name_of};
-pub use nodes::Volume;
+pub use epath::EPath;
+pub use util::{file_name_of, mount_entry_name, navigation_parent};

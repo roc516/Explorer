@@ -9,7 +9,7 @@ pub use message::{Action, Message};
 
 use std::path::PathBuf;
 
-use explorer_core::EPath;
+use explorer_core::{navigation_parent, EPath, Mounter};
 use explorer_app::{ids, ExplorerModel, LanguageBundle, ModelError, NavigationHistory};
 use iced::window as iced_window;
 use iced::widget::{container, row};
@@ -32,7 +32,7 @@ pub struct Toolbar {
 impl Toolbar {
     pub fn new(model: &ExplorerModel) -> Self {
         Self {
-            navigation: NavigationHistory::new(model.current_path.clone()),
+            navigation: NavigationHistory::new(model.current_path().to_path_buf()),
             address_input: model.internal_display(),
             address_editing: false,
             reveal_path: None,
@@ -72,23 +72,21 @@ impl Toolbar {
     ) -> (Task<window_msg::Message>, Option<Action>) {
         match message {
             Message::GoUp => {
-                let action = model.go_up().map(|path| {
-                    self.push_history(path.clone());
-                    Action::Load(path)
+                let action = model.go_up().map(|dir| {
+                    self.push_history(dir.path.clone());
+                    Action::Load(dir)
                 });
                 (Task::none(), action)
             }
             Message::GoBack => {
-                let action = self.navigation.go_back().map(|path| {
-                    model.begin_load();
-                    Action::Load(path)
+                let action = self.navigation.go_back().and_then(|path| {
+                    model.navigate(path).map(Action::Load)
                 });
                 (Task::none(), action)
             }
             Message::GoForward => {
-                let action = self.navigation.go_forward().map(|path| {
-                    model.begin_load();
-                    Action::Load(path)
+                let action = self.navigation.go_forward().and_then(|path| {
+                    model.navigate(path).map(Action::Load)
                 });
                 (Task::none(), action)
             }
@@ -111,9 +109,9 @@ impl Toolbar {
             }
             Message::BreadcrumbNavigate(path) => {
                 self.address_editing = false;
-                let action = model.navigate(path).map(|path| {
-                    self.push_history(path.clone());
-                    Action::Load(path)
+                let action = model.navigate(path).map(|dir| {
+                    self.push_history(dir.path.clone());
+                    Action::Load(dir)
                 });
                 (Task::none(), action)
             }
@@ -158,7 +156,8 @@ impl Toolbar {
 
     fn submit_address(&mut self, model: &mut ExplorerModel) -> Option<Action> {
         self.address_editing = false;
-        let path = EPath::from_address(&self.address_input, model.location());
+        let location = model.location();
+        let path = EPath::from_address(&self.address_input, &location);
 
         if !path.exists() {
             model.set_path_error(ModelError::InvalidPath);
@@ -167,20 +166,20 @@ impl Toolbar {
 
         if path.is_directory() {
             self.reveal_path = None;
-            return model.navigate(path.navigation_path()).map(|path| {
-                self.push_history(path.clone());
-                Action::Load(path)
+            return model.navigate(path.navigation_path()).map(|dir| {
+                self.push_history(dir.path.clone());
+                Action::Load(dir)
             });
         }
 
         if path.is_file() {
-            let Some(parent) = path.parent() else {
+            let nav = path.navigation_path();
+            let Some(parent_nav) = navigation_parent(&nav, Mounter::is_mount(&path)) else {
                 model.set_path_error(ModelError::InvalidPath);
                 return None;
             };
 
-            let parent_nav = parent.navigation_path();
-            if parent_nav == model.current_path {
+            if parent_nav == model.current_path() {
                 self.address_input = path.internal_display();
                 model.error = None;
                 model.select_path(path.path());
@@ -188,10 +187,10 @@ impl Toolbar {
                 return None;
             }
 
-            self.reveal_path = Some(path.navigation_path());
-            return model.navigate(parent_nav).map(|path| {
-                self.push_history(path.clone());
-                Action::Load(path)
+            self.reveal_path = Some(nav);
+            return model.navigate(parent_nav).map(|dir| {
+                self.push_history(dir.path.clone());
+                Action::Load(dir)
             });
         }
 

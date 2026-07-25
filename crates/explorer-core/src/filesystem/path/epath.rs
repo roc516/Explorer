@@ -11,7 +11,7 @@ pub struct EPath {
     pub(crate) path: PathBuf,
 }
 
-pub fn disk_path(disk_path: PathBuf, backend: &'static str) -> EPath {
+pub(crate) fn disk_path(disk_path: PathBuf, backend: &'static str) -> EPath {
     EPath {
         backend,
         root: DeviceId::Host(PathBuf::new()),
@@ -59,14 +59,6 @@ impl EPath {
         } else {
             self.display()
         }
-    }
-
-    pub fn backend(&self) -> &'static str {
-        self.backend
-    }
-
-    pub fn root(&self) -> &DeviceId {
-        &self.root
     }
 
     pub fn path(&self) -> &Path {

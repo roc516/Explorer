@@ -2,10 +2,11 @@ use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use crate::entry::{DirEntry, FsEntry};
+use crate::entry::{mount_root_dir, DirEntry, FsEntry};
 use crate::filesystem::backends::{try_registry, BlockDevice, DeviceId, MountedDevice};
 
 use super::epath::EPath;
+use super::util::mount_entry_name;
 
 type DeviceKey = (&'static str, DeviceId);
 
@@ -18,7 +19,7 @@ fn devices() -> &'static Mutex<HashMap<DeviceKey, Arc<dyn MountedDevice>>> {
 pub struct Mounter;
 
 impl Mounter {
-    pub fn mount_path(root: DeviceId, path: PathBuf, backend: &'static str) -> EPath {
+    pub(crate) fn mount_path(root: DeviceId, path: PathBuf, backend: &'static str) -> EPath {
         EPath {
             backend,
             root,
@@ -26,16 +27,8 @@ impl Mounter {
         }
     }
 
-    pub fn join_mounted_path(inner: &Path, name: &str) -> PathBuf {
-        if inner.as_os_str().is_empty() {
-            PathBuf::from(name)
-        } else {
-            inner.join(name)
-        }
-    }
-
     /// Mount a block device via a mountable backend and return the archive root path.
-    pub fn mount_root(device: BlockDevice) -> Result<EPath, String> {
+    pub(crate) fn mount_root(device: BlockDevice) -> Result<EPath, String> {
         let backend = try_registry()
             .ok_or("fs backends not initialized")?
             .find_backend(&device)
@@ -57,8 +50,36 @@ impl Mounter {
         ))
     }
 
+    /// Mount a block device and return the root [`EPath`] plus a listable [`DirEntry`].
+    pub fn mount_root_dir(device: BlockDevice) -> Result<(EPath, DirEntry), String> {
+        let name = {
+            let name = device.name().to_string();
+            if name.is_empty() {
+                device.id().display()
+            } else {
+                name
+            }
+        };
+        let root = Self::mount_root(device)?;
+        let mounted = Self::device(&root)?;
+        Ok((root, mount_root_dir(name, mounted)))
+    }
+
+    /// Resolve a navigation path under a mount root to a [`DirEntry`].
+    pub fn dir_at(root: &EPath, relative: &Path) -> Result<DirEntry, String> {
+        if !Self::is_mount(root) {
+            return Err("not-a-mount-path".to_string());
+        }
+        let name = mount_entry_name(relative);
+        if name.is_empty() {
+            let mounted = Self::device(root)?;
+            return Ok(mount_root_dir(String::new(), mounted));
+        }
+        Self::dir_entry_at(root, &name)
+    }
+
     /// Cached mounted filesystem root for an archive path.
-    pub fn device(path: &EPath) -> Result<Arc<dyn MountedDevice>, String> {
+    pub(crate) fn device(path: &EPath) -> Result<Arc<dyn MountedDevice>, String> {
         if !Self::is_mount(path) {
             return Err("not-a-mount-path".to_string());
         }
@@ -87,7 +108,7 @@ impl Mounter {
     ///
     /// Root uses [`MountedDevice::list`]; nested paths walk [`DirEntry`] and call
     /// [`DirEntry::list`].
-    pub fn list_at(path: &EPath, relative: &str) -> Result<Vec<FsEntry>, String> {
+    pub(crate) fn list_at(path: &EPath, relative: &str) -> Result<Vec<FsEntry>, String> {
         let relative = relative.trim_matches(|c| c == '/' || c == '\\');
         if relative.is_empty() {
             return Self::device(path)?.list();
@@ -96,7 +117,7 @@ impl Mounter {
     }
 
     /// Resolve a nested directory entry under the archive root.
-    pub fn dir_entry_at(path: &EPath, relative: &str) -> Result<DirEntry, String> {
+    fn dir_entry_at(path: &EPath, relative: &str) -> Result<DirEntry, String> {
         let parts: Vec<&str> = relative
             .split(['/', '\\'])
             .filter(|part| !part.is_empty())
@@ -123,7 +144,7 @@ impl Mounter {
     }
 
     /// Reconstruct a [`BlockDevice`] from a [`DeviceId`] (mountable devices only).
-    pub fn block_device_for(id: &DeviceId) -> Result<BlockDevice, String> {
+    fn block_device_for(id: &DeviceId) -> Result<BlockDevice, String> {
         match id {
             DeviceId::Host(path) if path.as_os_str().is_empty() => {
                 Err("host-disk-is-not-a-block-device".to_string())

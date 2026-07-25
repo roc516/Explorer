@@ -1,9 +1,8 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
-use explorer_core::filesystem::{list_drives, BlockDevice, Mounter, MountedDevice};
-use explorer_core::{DirEntry, Directory, FsEntry};
+use explorer_core::filesystem::{list_drives, BlockDevice, Mounter};
+use explorer_core::{DirEntry, FsEntry};
 
 #[derive(Debug, Clone)]
 pub struct TreeNode {
@@ -54,25 +53,10 @@ impl DirectoryTree {
     }
 
     pub fn for_mounted(device: BlockDevice) -> Self {
-        let name = device.name().to_string();
-        let name = if name.is_empty() {
-            device.id().display()
-        } else {
-            name
-        };
-
-        let root = Mounter::mount_root(device).unwrap_or_else(|message| {
+        let (_root, dir) = Mounter::mount_root_dir(device).unwrap_or_else(|message| {
             panic!("unsupported archive: {message}")
         });
-        let mounted = Mounter::device(&root).unwrap_or_else(|message| {
-            panic!("mount device unavailable: {message}")
-        });
-
-        Self::with_roots(vec![TreeNode::from_dir(DirEntry::new(
-            name,
-            PathBuf::new(),
-            Arc::new(MountedRoot(mounted)),
-        ))])
+        Self::with_roots(vec![TreeNode::from_dir(dir)])
     }
 
     fn with_roots(roots: Vec<TreeNode>) -> Self {
@@ -215,14 +199,6 @@ pub fn load_tree_children(dir: &DirEntry) -> Result<Vec<TreeNode>, String> {
             FsEntry::File(_) => None,
         })
         .collect())
-}
-
-struct MountedRoot(Arc<dyn MountedDevice>);
-
-impl Directory for MountedRoot {
-    fn list(&self) -> Result<Vec<FsEntry>, String> {
-        self.0.list()
-    }
 }
 
 fn ancestors_and_self(path: &Path) -> Vec<PathBuf> {

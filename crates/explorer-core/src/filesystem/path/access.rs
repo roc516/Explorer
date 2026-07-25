@@ -1,48 +1,10 @@
-use std::path::{Path, PathBuf};
-
-use super::epath::{disk_path, EPath};
+use super::epath::EPath;
 use super::mounter::Mounter;
-use super::reader::mount_entry_name;
+use super::util::mount_entry_name;
 use crate::entry::{FileEntry, FsEntry};
 use crate::filesystem::backends::{is_mountable, BlockDevice, DeviceId, EntryKind};
 
 impl EPath {
-    pub fn parent(&self) -> Option<EPath> {
-        if Mounter::is_mount(self) {
-            let (container, inner) = Mounter::mount_ref(self).ok()?;
-            if inner.as_os_str().is_empty() {
-                return None;
-            }
-            let parent = inner.parent().unwrap_or(Path::new(""));
-            Some(Mounter::mount_path(
-                container.clone(),
-                parent.to_path_buf(),
-                self.backend,
-            ))
-        } else {
-            let disk = self.disk_ref().ok()?;
-            disk.parent()
-                .map(|parent| disk_path(parent.to_path_buf(), self.backend))
-        }
-    }
-
-    pub fn join_dir(&self, name: &str) -> EPath {
-        if Mounter::is_mount(self) {
-            let Ok((container, inner)) = Mounter::mount_ref(self) else {
-                return disk_path(PathBuf::from(name), self.backend);
-            };
-            let inner = if inner.as_os_str().is_empty() {
-                PathBuf::from(name)
-            } else {
-                inner.join(name)
-            };
-            Mounter::mount_path(container.clone(), inner, self.backend)
-        } else {
-            let disk = self.disk_ref().unwrap_or(Path::new(""));
-            disk_path(disk.join(name), self.backend)
-        }
-    }
-
     pub fn display(&self) -> String {
         if Mounter::is_mount(self) {
             let Ok((container, inner)) = Mounter::mount_ref(self) else {
@@ -88,13 +50,6 @@ impl EPath {
             .unwrap_or_default()
     }
 
-    pub fn extension(&self) -> Option<String> {
-        self.path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .map(str::to_ascii_lowercase)
-    }
-
     /// If this path is a mountable archive, build a [`BlockDevice`] for it.
     pub fn as_mountable_device(&self) -> Option<BlockDevice> {
         if !self.is_file() {
@@ -118,25 +73,6 @@ impl EPath {
         };
 
         is_mountable(&device).then_some(device)
-    }
-
-    pub fn open_with_system(&self) -> Result<(), String> {
-        let path = if Mounter::is_mount(self) {
-            let temp_dir = std::env::temp_dir().join("explorer-archive-preview");
-            std::fs::create_dir_all(&temp_dir).map_err(|err| err.to_string())?;
-            let file = FileEntry::resolve(self)?;
-            let file_name = if file.name.is_empty() {
-                "preview.bin".to_string()
-            } else {
-                file.name.clone()
-            };
-            let output = temp_dir.join(file_name);
-            std::fs::write(&output, file.read()?).map_err(|err| err.to_string())?;
-            output
-        } else {
-            self.disk_ref()?.to_path_buf()
-        };
-        open::that(&path).map_err(|err| err.to_string())
     }
 
     fn mount_entry_kind(&self) -> Option<EntryKind> {

@@ -174,11 +174,11 @@ impl App {
             Launch::Archive(device) => Explorer::new_mounted(device, locale),
         };
 
-        let load_path = explorer.model.location().clone();
+        let load_dir = explorer.model.current_dir().clone();
         self.focused_window = Some(id);
         self.windows.insert(id, explorer);
 
-        file_list::load_directory_task(load_path)
+        file_list::load_directory_from_dir(load_dir)
             .map(move |message| Message::Window(id, window_msg::Message::FileList(message)))
     }
 
@@ -338,16 +338,15 @@ impl Explorer {
         stack(layers).width(Fill).height(Fill).into()
     }
 
-    fn load_directory(&self, path: std::path::PathBuf) -> Task<window_msg::Message> {
-        let path = self.model.with_navigation_path(path);
-        file_list::load_directory_task(path).map(window_msg::Message::FileList)
+    fn load_directory(&self, dir: explorer_core::DirEntry) -> Task<window_msg::Message> {
+        file_list::load_directory_from_dir(dir).map(window_msg::Message::FileList)
     }
 
     fn update_explorer(&mut self, message: toolbar::Message) -> Task<window_msg::Message> {
         let (task, action) = self.toolbar.update(message, &mut self.model);
         let mut tasks = vec![task];
-        if let Some(ToolbarAction::Load(path)) = action {
-            tasks.push(self.load_directory(path));
+        if let Some(ToolbarAction::Load(dir)) = action {
+            tasks.push(self.load_directory(dir));
         }
         Task::batch(tasks)
     }
@@ -494,11 +493,9 @@ impl Explorer {
         let mut tasks = vec![task.map(window_msg::Message::Tree)];
 
         if let Some(TreeAction::Navigate(dir)) = action {
-            let path = self.model.navigate_dir(dir.clone());
-            self.toolbar.push_history(path);
-            tasks.push(
-                file_list::load_directory_from_dir(dir).map(window_msg::Message::FileList),
-            );
+            let dir = self.model.navigate_dir(dir);
+            self.toolbar.push_history(dir.path.clone());
+            tasks.push(self.load_directory(dir));
         }
 
         Task::batch(tasks)

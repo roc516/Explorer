@@ -8,7 +8,7 @@ mod sort;
 mod task;
 
 pub use message::{Action, Message};
-pub use task::{load_directory_from_dir, load_directory_task};
+pub use task::load_directory_from_dir;
 
 use explorer_app::{ids, ExplorerModel};
 use iced::event;
@@ -81,7 +81,7 @@ impl FileList {
                 let action = result
                     .as_ref()
                     .ok()
-                    .map(|(path, _)| Action::DirectoryLoaded(path.clone()));
+                    .map(|(dir, _)| Action::DirectoryLoaded(dir.path.clone()));
                 model.on_directory_loaded(result);
                 apply_sort(model, self.sort);
                 (Task::none(), action)

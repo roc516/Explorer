@@ -1,11 +1,36 @@
-pub fn file_name_of(path: &std::path::Path) -> String {
+use std::path::{Component, Path, PathBuf};
+
+pub fn file_name_of(path: &Path) -> String {
     path.file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default()
 }
 
-pub fn extension_of(path: &std::path::Path) -> Option<String> {
-    path.extension()
-        .and_then(|ext| ext.to_str())
-        .map(str::to_ascii_lowercase)
+/// Entry / directory name relative to a mount root (`""`, `"folder"`, `"a/b"`).
+pub fn mount_entry_name(path: &Path) -> String {
+    path.components()
+        .filter_map(|component| match component {
+            Component::Normal(name) => Some(name.to_string_lossy().into_owned()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+/// Parent of an in-window navigation path.
+///
+/// For mounts, the archive root (`""`) has no parent.
+pub fn navigation_parent(path: &Path, is_mount: bool) -> Option<PathBuf> {
+    if is_mount {
+        if path.as_os_str().is_empty() {
+            return None;
+        }
+        Some(
+            path.parent()
+                .unwrap_or_else(|| Path::new(""))
+                .to_path_buf(),
+        )
+    } else {
+        path.parent().map(|parent| parent.to_path_buf())
+    }
 }

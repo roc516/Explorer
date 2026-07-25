@@ -13,10 +13,11 @@ pub fn breadcrumb_bar(
     model: &ExplorerModel,
     window_id: iced_window::Id,
 ) -> Element<'static, AppMessage> {
-    let root_label = Mounter::mount_ref(model.location())
+    let location = model.location();
+    let root_label = Mounter::mount_ref(&location)
         .ok()
         .map(|(container, _)| mount_root_label(container));
-    let crumbs = breadcrumbs(&model.current_path, root_label);
+    let crumbs = breadcrumbs(model.current_path(), root_label);
     let last_index = crumbs.len().saturating_sub(1);
     let mut items: Vec<Element<'static, AppMessage>> = Vec::new();
 

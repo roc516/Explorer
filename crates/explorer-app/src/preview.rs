@@ -5,10 +5,9 @@ mod ppt_preview;
 mod text_preview;
 mod word_preview;
 
-use std::io::Read;
+use std::io::{Cursor, Read};
 use std::path::Path;
 
-use explorer_core::filesystem::Reader;
 use explorer_core::FsEntry;
 
 pub use image_preview::ImagePreview;
@@ -41,9 +40,9 @@ pub fn load_preview(entry: &FsEntry) -> Result<PreviewFile, String> {
     };
     let name = file.name.clone();
     let extension = extension_of(&name);
-    Reader::read_file(file, |reader, size| {
-        read_preview_file(&name, extension, reader, size)
-    })
+    let bytes = file.read()?;
+    let size = bytes.len() as u64;
+    read_preview_file(&name, extension, &mut Cursor::new(bytes), size)
 }
 
 /// Open the file with the system default app.
