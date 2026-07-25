@@ -210,8 +210,8 @@ fn build_fluent_bundle(locale: Locale) -> FluentBundle<FluentResource> {
         Locale::ZhHans => langid!("zh-Hans"),
     };
     let ftl = match locale {
-        Locale::En => include_str!("../../../locales/en.ftl"),
-        Locale::ZhHans => include_str!("../../../locales/zh-Hans.ftl"),
+        Locale::En => include_str!("../../locales/en.ftl"),
+        Locale::ZhHans => include_str!("../../locales/zh-Hans.ftl"),
     };
 
     let mut bundle = FluentBundle::new(vec![lang_id]);

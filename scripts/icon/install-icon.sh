@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 APP_ID="org.explorer.app"
 DESKTOP_FILE="$APP_ID.desktop"
 SVG_FILE="$APP_ID.svg"
 
 # 安装 .desktop 文件
 mkdir -p "$HOME/.local/share/applications"
-sed "s/Icon=.*/Icon=$APP_ID/" explorer.desktop \
+sed "s/Icon=.*/Icon=$APP_ID/" "$SCRIPT_DIR/explorer.desktop" \
   | sed "s/StartupWMClass=.*/StartupWMClass=$APP_ID/" \
   > "$HOME/.local/share/applications/$DESKTOP_FILE"
 echo "  ✓ $HOME/.local/share/applications/$DESKTOP_FILE"
@@ -15,7 +17,7 @@ echo "  ✓ $HOME/.local/share/applications/$DESKTOP_FILE"
 # 安装 SVG 图标
 ICON_DIR="$HOME/.local/share/icons/hicolor/scalable/apps"
 mkdir -p "$ICON_DIR"
-cp "resources/explorer.svg" "$ICON_DIR/$SVG_FILE"
+cp "$SCRIPT_DIR/explorer.svg" "$ICON_DIR/$SVG_FILE"
 echo "  ✓ $ICON_DIR/$SVG_FILE"
 
 # 刷新桌面数据库

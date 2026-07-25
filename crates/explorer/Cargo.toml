@@ -1,0 +1,15 @@
+[package]
+name = "explorer"
+version = "0.1.0"
+edition = "2021"
+description = "A Windows Explorer-like file manager built with Iced"
+
+[dependencies]
+explorer-core = { path = "../explorer-core" }
+explorer-app = { path = "../explorer-app" }
+explorer-fs-folder = { path = "../backends/explorer-fs-folder" }
+explorer-fs-zip = { path = "../backends/explorer-fs-zip" }
+fluent = "0.17"
+iced = { version = "0.14", features = ["tokio", "advanced", "image"] }
+lucide-icons = { version = "1.20", features = ["iced"] }
+fontdue = "0.9"

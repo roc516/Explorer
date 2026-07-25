@@ -6,39 +6,16 @@
 
 ```
 Explorer/
-├── Cargo.toml          # 工作区 + GUI 二进制
-├── locales/            # Fluent 翻译资源
-│   ├── en.ftl
-│   └── zh-Hans.ftl
-├── explorer-core/      # 非 UI 核心逻辑库
-│   └── src/
-│       ├── entry.rs        # 文件条目模型
-│       ├── fs.rs           # 文件系统操作
-│       ├── i18n/           # LanguageBundle、message id、ICU 格式化
-│       ├── model.rs        # 浏览状态与命令处理
-│       └── navigation.rs   # 前进/后退历史
-└── src/                # Iced 界面
-    ├── main.rs         # 程序入口
-    ├── message/        # 顶层 Message（嵌套各模块子消息）
-    │   ├── mod.rs
-    │   ├── explorer.rs # 导航、地址栏
-    │   ├── file_list.rs # 文件列表
-    │   ├── tree.rs     # 目录树
-    │   ├── theme.rs    # 主题
-    │   └── input.rs    # 键盘
-    ├── theme.rs        # 主题选择与解析
-    ├── tasks.rs        # 异步任务转换
-    ├── style.rs        # 共享样式
-    ├── widget/         # 可复用控件
-    │   ├── directory_tree.rs
-    │   └── file_list.rs
-    ├── app/            # 应用状态与 update 逻辑
-    │   ├── mod.rs
-    │   └── update.rs   # 按模块分发 update
-    └── view/           # 视图组件
-        ├── mod.rs      # 布局编排
-        ├── toolbar.rs
-        └── status_bar.rs
+├── Cargo.toml              # workspace
+├── crates/
+│   ├── explorer/           # Iced GUI 二进制
+│   ├── explorer-app/       # 应用状态、i18n、展示逻辑
+│   │   └── locales/        # Fluent 翻译资源
+│   ├── explorer-core/      # 文件系统抽象与路径类型
+│   └── backends/
+│       ├── explorer-fs-folder/ # 本地目录后端
+│       └── explorer-fs-zip/    # ZIP 后端
+└── scripts/icon/           # 桌面图标与 .desktop 安装脚本
 ```
 
 ## 功能
@@ -61,5 +38,6 @@ cargo run --release
 
 - Rust 2021
 - Iced 0.14（仅 GUI 层）
-- explorer-core（文件系统与导航逻辑，无 UI 依赖）
+- explorer-core（文件系统抽象，无 UI 依赖）
+- explorer-app（应用状态与 i18n）
 - Fluent、ICU4X（翻译与 locale 感知格式化）
