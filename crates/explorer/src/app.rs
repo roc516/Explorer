@@ -90,23 +90,19 @@ impl App {
             return iced::widget::Space::new().into();
         };
 
-        let content = window.view(window_id);
-
-        if !self.settings_open {
-            return content;
-        }
-
-        stack![
-            content,
-            self.settings.view(
-                window.model.bundle.clone(),
+        // Keep Stack as the stable root. Toggling settings must only add/remove the
+        // overlay child — switching root from Column to Stack rebuilds the whole UI
+        // tree (file list + directory tree) and feels like a hitch on open.
+        let mut layers = vec![window.view(window_id)];
+        if self.settings_open {
+            layers.push(self.settings.view(
+                window.model.bundle,
                 self.theme_choice,
                 self.language,
-            ),
-        ]
-        .width(Fill)
-        .height(Fill)
-        .into()
+            ));
+        }
+
+        stack(layers).width(Fill).height(Fill).into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -328,21 +324,19 @@ impl Explorer {
         .height(Fill)
         .into();
 
-        let Some(preview_state) = &self.preview_state else {
-            return main;
-        };
+        // Same as settings: keep Stack as root so opening preview does not rebuild main.
+        let mut layers = vec![main];
+        if let Some(preview_state) = &self.preview_state {
+            layers.push(
+                self.preview
+                    .view(bundle, preview_state)
+                    .map(move |message| {
+                        Message::Window(window_id, window_msg::Message::Preview(message))
+                    }),
+            );
+        }
 
-        stack![
-            main,
-            self.preview
-                .view(bundle, preview_state)
-                .map(move |message| {
-                    Message::Window(window_id, window_msg::Message::Preview(message))
-                }),
-        ]
-        .width(Fill)
-        .height(Fill)
-        .into()
+        stack(layers).width(Fill).height(Fill).into()
     }
 
     fn load_directory(&self, path: EPath) -> Task<window_msg::Message> {
