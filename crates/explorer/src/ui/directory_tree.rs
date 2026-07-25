@@ -81,6 +81,13 @@ impl DirectoryTree {
             .unwrap_or_else(Task::none)
     }
 
+    pub fn refresh(&mut self) -> Task<Message> {
+        self.state
+            .refresh()
+            .map(load_children_task)
+            .unwrap_or_else(Task::none)
+    }
+
     pub fn view(&self, bundle: explorer_app::LanguageBundle) -> Element<'_, Message> {
         let rows = self.state.rows();
         let no_locations = bundle.tr(explorer_app::ids::TREE_NO_LOCATIONS);

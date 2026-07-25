@@ -40,6 +40,8 @@ pub struct DirectoryTree {
     children: HashMap<PathBuf, Vec<TreeNode>>,
     loading: BTreeSet<PathBuf>,
     selected: Option<PathBuf>,
+    /// When true, [`Self::refresh`] re-lists host drives as roots.
+    host_roots: bool,
 }
 
 impl DirectoryTree {
@@ -49,7 +51,9 @@ impl DirectoryTree {
             .map(TreeNode::from_dir)
             .collect();
 
-        Self::with_roots(roots)
+        let mut tree = Self::with_roots(roots);
+        tree.host_roots = true;
+        tree
     }
 
     pub fn for_mounted(device: BlockDevice) -> Self {
@@ -66,6 +70,7 @@ impl DirectoryTree {
             children: HashMap::new(),
             loading: BTreeSet::new(),
             selected: None,
+            host_roots: false,
         }
     }
 
@@ -108,14 +113,33 @@ impl DirectoryTree {
             }
             Err(_) => {
                 self.expanded.remove(&path);
-                return None;
             }
         }
 
-        // Continue expanding toward the selected path after a parent finishes loading.
-        self.selected
-            .clone()
-            .and_then(|selected| self.next_sync_load(selected.as_path()))
+        self.next_pending_load()
+    }
+
+    /// Drop cached listings and reload expanded folders (and host roots when applicable).
+    pub fn refresh(&mut self) -> Option<DirEntry> {
+        let expanded = self.expanded.clone();
+        let selected = self.selected.clone();
+        let host_roots = self.host_roots;
+
+        if host_roots {
+            let roots = list_drives()
+                .into_iter()
+                .map(TreeNode::from_dir)
+                .collect();
+            *self = Self::with_roots(roots);
+            self.host_roots = true;
+            self.expanded = expanded;
+            self.selected = selected;
+        } else {
+            self.children.clear();
+            self.loading.clear();
+        }
+
+        self.next_pending_load()
     }
 
     /// Mark ancestors expanded and return the next directory that still needs listing.
@@ -131,6 +155,27 @@ impl DirectoryTree {
                 continue;
             }
             return self.begin_load(&path);
+        }
+        None
+    }
+
+    /// Next directory to list: toward selection first, then other expanded folders.
+    fn next_pending_load(&mut self) -> Option<DirEntry> {
+        if let Some(selected) = self.selected.clone() {
+            if let Some(entry) = self.next_sync_load(selected.as_path()) {
+                return Some(entry);
+            }
+        }
+
+        let mut candidates: Vec<_> = self.expanded.iter().cloned().collect();
+        candidates.sort_by_key(|path| path.components().count());
+        for path in candidates {
+            if self.children.contains_key(&path) || self.loading.contains(&path) {
+                continue;
+            }
+            if let Some(entry) = self.begin_load(&path) {
+                return Some(entry);
+            }
         }
         None
     }

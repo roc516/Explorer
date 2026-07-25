@@ -338,10 +338,18 @@ impl Explorer {
     }
 
     fn update_explorer(&mut self, message: toolbar::Message) -> Task<window_msg::Message> {
+        let refresh_tree = matches!(message, toolbar::Message::Refresh);
         let (task, action) = self.toolbar.update(message, &mut self.model);
         let mut tasks = vec![task];
         if let Some(ToolbarAction::Load(dir)) = action {
             tasks.push(self.load_directory(dir));
+        }
+        if refresh_tree {
+            tasks.push(
+                self.directory_tree
+                    .refresh()
+                    .map(window_msg::Message::Tree),
+            );
         }
         Task::batch(tasks)
     }
