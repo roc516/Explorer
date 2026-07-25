@@ -6,4 +6,3 @@ pub mod settings;
 pub mod status_bar;
 pub mod style;
 pub mod toolbar;
-pub mod toolbar_icons;

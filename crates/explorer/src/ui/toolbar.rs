@@ -1,3 +1,5 @@
+mod icons;
+
 use explorer_core::EPath;
 use explorer_app::{
     breadcrumbs, ids, ExplorerModel, LanguageBundle, ModelError, NavigationHistory,
@@ -12,7 +14,8 @@ use crate::fluent::{
     RADIUS_CONTROL, SPACE_MD, SPACE_SM, SPACE_XS,
 };
 use crate::message::{settings, window as window_msg, Message as AppMessage};
-use crate::ui::toolbar_icons::{self, NavIcon};
+
+use icons::{self as toolbar_icons, NavIcon};
 
 pub const ADDRESS_INPUT_ID: iced::widget::Id = iced::widget::Id::new("toolbar-address-input");
 
