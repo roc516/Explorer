@@ -381,8 +381,8 @@ impl Explorer {
                             .map(window_msg::Message::Tree),
                     );
                 }
-                FileListAction::PreviewFile(path) => {
-                    tasks.push(self.open_preview(path).map(window_msg::Message::Preview));
+                FileListAction::PreviewFile(entry) => {
+                    tasks.push(self.open_preview(entry).map(window_msg::Message::Preview));
                 }
                 FileListAction::OpenArchive(device) => {
                     return (Task::none(), Some(device));
@@ -393,10 +393,9 @@ impl Explorer {
         (Task::batch(tasks), None)
     }
 
-    fn open_preview(&mut self, path: EPath) -> Task<preview::Message> {
-        let name = path.file_name();
-        self.preview_state = Some(PreviewState::opening(path.clone(), name));
-        preview_ui::load_preview_task(path)
+    fn open_preview(&mut self, entry: explorer_core::FsEntry) -> Task<preview::Message> {
+        self.preview_state = Some(PreviewState::opening(entry.clone()));
+        preview_ui::load_preview_task(entry)
     }
 
     fn update_preview(&mut self, message: preview::Message) -> Task<window_msg::Message> {
@@ -425,8 +424,8 @@ impl Explorer {
                 }
             }
             preview::Message::OpenExternal => {
-                if let Some(source) = self.preview_state.as_ref().map(|state| state.open_path.clone()) {
-                    if let Err(message) = source.open_with_system() {
+                if let Some(source) = self.preview_state.as_ref().map(|state| state.source.clone()) {
+                    if let Err(message) = explorer_app::open_with_system(&source) {
                         if let Some(state) = &mut self.preview_state {
                             state.error = Some(message);
                         }

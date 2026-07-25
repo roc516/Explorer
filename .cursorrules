@@ -1,0 +1,13 @@
+# Commit messages
+
+You MUST write all git commit messages in Simplified Chinese (简体中文).
+
+Match this repository's existing style:
+- Prefer a short one-line subject (about one sentence).
+- Focus on why/what changed at a high level, not a file list.
+- Do not write commit messages in English unless the user explicitly asks.
+
+Examples of the desired style:
+- 拆分 toolbar 模块
+- 修复打开设置/预览时因根节点切换导致的卡顿
+- 简化窗口内导航：内部路径地址栏 + toolbar 使用 PathBuf

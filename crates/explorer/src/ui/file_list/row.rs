@@ -22,7 +22,7 @@ pub(crate) fn file_row<'a>(
     let size = entry.size_label(bundle);
 
     let content = row![
-        container(LucideIcon::new(if entry.is_dir {
+        container(LucideIcon::new(if entry.is_dir() {
             Icon::Folder
         } else {
             Icon::File
@@ -30,7 +30,7 @@ pub(crate) fn file_row<'a>(
         .width(Length::Fixed(COL_ICON))
         .align_x(alignment::Horizontal::Center)
         .align_y(alignment::Vertical::Center),
-        clipped_cell(&entry.name, widths.name, 14.0),
+        clipped_cell(entry.name(), widths.name, 14.0),
         column_gap(),
         clipped_cell(modified, widths.modified, 13.0),
         column_gap(),

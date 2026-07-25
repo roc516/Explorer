@@ -6,9 +6,10 @@ mod text_preview;
 mod word_preview;
 
 use std::io::Read;
+use std::path::Path;
 
-use explorer_core::filesystem::{EPath, Reader};
-use explorer_core::FileEntry;
+use explorer_core::filesystem::Reader;
+use explorer_core::FsEntry;
 
 pub use image_preview::ImagePreview;
 pub use pdf_preview::PdfPreview;
@@ -33,22 +34,55 @@ pub struct PreviewFile {
     pub kind: PreviewKind,
 }
 
-pub fn load_preview(path: &EPath) -> Result<PreviewFile, String> {
-    let entry = FileEntry::resolve(path)?;
-    Reader::read_file(&entry, |reader, size| read_preview_file(path, reader, size))
+/// Load preview content from a listed [`FsEntry`] (no path re-resolve).
+pub fn load_preview(entry: &FsEntry) -> Result<PreviewFile, String> {
+    let FsEntry::File(file) = entry else {
+        return Err("preview-not-file".to_string());
+    };
+    let name = file.name.clone();
+    let extension = extension_of(&name);
+    Reader::read_file(file, |reader, size| {
+        read_preview_file(&name, extension, reader, size)
+    })
+}
+
+/// Open the file with the system default app.
+///
+/// Absolute disk paths are opened in place; archive entries are written to a
+/// temp file first (using the listed content handle).
+pub fn open_with_system(entry: &FsEntry) -> Result<(), String> {
+    let FsEntry::File(file) = entry else {
+        return Err("preview-not-file".to_string());
+    };
+
+    let path = if file.path.is_absolute() {
+        file.path.clone()
+    } else {
+        let temp_dir = std::env::temp_dir().join("explorer-archive-preview");
+        std::fs::create_dir_all(&temp_dir).map_err(|err| err.to_string())?;
+        let file_name = if file.name.is_empty() {
+            "preview.bin".to_string()
+        } else {
+            file.name.clone()
+        };
+        let output = temp_dir.join(file_name);
+        std::fs::write(&output, file.read()?).map_err(|err| err.to_string())?;
+        output
+    };
+
+    open::that(&path).map_err(|err| err.to_string())
 }
 
 fn read_preview_file(
-    path: &EPath,
+    name: &str,
+    extension: Option<String>,
     reader: &mut dyn Read,
     size: u64,
 ) -> Result<PreviewFile, String> {
-    let name = path.file_name();
     if name.is_empty() {
         return Err("preview-not-file".to_string());
     }
 
-    let extension = path.extension();
     let kind = match extension.as_deref() {
         Some(ext) if text_preview::is_extension(ext) => {
             PreviewKind::Text(text_preview::load(reader, size)?)
@@ -69,7 +103,7 @@ fn read_preview_file(
     };
 
     Ok(PreviewFile {
-        name,
+        name: name.to_string(),
         size,
         kind,
     })
@@ -83,8 +117,18 @@ pub fn is_previewable_extension(ext: &str) -> bool {
         || pdf_preview::is_extension(ext)
 }
 
-pub fn is_previewable(path: &EPath) -> bool {
-    path.extension()
-        .as_deref()
-        .is_some_and(is_previewable_extension)
+pub fn is_previewable(entry: &FsEntry) -> bool {
+    match entry {
+        FsEntry::File(file) => {
+            extension_of(&file.name).is_some_and(|ext| is_previewable_extension(&ext))
+        }
+        FsEntry::Dir(_) => false,
+    }
+}
+
+fn extension_of(name: &str) -> Option<String> {
+    Path::new(name)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(str::to_ascii_lowercase)
 }

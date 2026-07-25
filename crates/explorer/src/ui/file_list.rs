@@ -60,8 +60,8 @@ impl FileList {
                         load_directory_task(path.clone()),
                         Some(Action::Navigated(path)),
                     ),
-                    Some(explorer_app::OpenEntryAction::Preview(path)) => {
-                        (Task::none(), Some(Action::PreviewFile(path)))
+                    Some(explorer_app::OpenEntryAction::Preview(entry)) => {
+                        (Task::none(), Some(Action::PreviewFile(entry)))
                     }
                     Some(explorer_app::OpenEntryAction::OpenArchive(path)) => {
                         (Task::none(), Some(Action::OpenArchive(path)))

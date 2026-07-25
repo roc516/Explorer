@@ -1,63 +1,79 @@
 use std::time::SystemTime;
 
 use explorer_core::filesystem::{Mounter, EPath};
-use explorer_core::FsEntry;
+use explorer_core::{FileEntry as CoreFileEntry, FsEntry};
 
 use crate::i18n::{ids, LanguageBundle};
 
-/// UI-level file entry used by the model and widgets.
-/// Converted from the core `FsEntry` enum.
+/// UI-level listing entry: full [`EPath`] plus the original core [`FsEntry`].
 #[derive(Debug, Clone)]
 pub struct FileEntry {
-    pub name: String,
-    pub path: EPath,
-    pub is_dir: bool,
-    pub size: u64,
-    pub modified: Option<SystemTime>,
+    path: EPath,
+    inner: FsEntry,
 }
 
 impl FileEntry {
-    /// Convert a core listing entry under `dir` into a UI entry with a full [`EPath`].
+    /// Wrap a core listing entry under `dir`, attaching a full [`EPath`].
     pub fn from_fs(entry: FsEntry, dir: &EPath) -> Self {
-        match entry {
-            FsEntry::Dir(d) => {
-                let path = if Mounter::is_mount(dir) {
-                    Mounter::mount_path(dir.root().clone(), d.path, dir.backend())
-                } else {
-                    EPath::local(d.path)
-                };
-                Self {
-                    name: d.name,
-                    path,
-                    is_dir: true,
-                    size: 0,
-                    modified: None,
-                }
-            }
-            FsEntry::File(f) => {
-                let path = if Mounter::is_mount(dir) {
-                    Mounter::mount_path(dir.root().clone(), f.path, dir.backend())
-                } else {
-                    EPath::local(f.path)
-                };
-                Self {
-                    name: f.name,
-                    path,
-                    is_dir: false,
-                    size: f.size,
-                    modified: f.modified,
-                }
-            }
+        let relative = match &entry {
+            FsEntry::Dir(d) => d.path.clone(),
+            FsEntry::File(f) => f.path.clone(),
+        };
+        let path = if Mounter::is_mount(dir) {
+            Mounter::mount_path(dir.root().clone(), relative, dir.backend())
+        } else {
+            EPath::local(relative)
+        };
+        Self { path, inner: entry }
+    }
+
+    pub fn path(&self) -> &EPath {
+        &self.path
+    }
+
+    pub fn name(&self) -> &str {
+        match &self.inner {
+            FsEntry::Dir(d) => d.name.as_str(),
+            FsEntry::File(f) => f.name.as_str(),
         }
     }
 
+    pub fn is_dir(&self) -> bool {
+        matches!(self.inner, FsEntry::Dir(_))
+    }
+
+    pub fn size(&self) -> u64 {
+        match &self.inner {
+            FsEntry::File(f) => f.size,
+            FsEntry::Dir(_) => 0,
+        }
+    }
+
+    pub fn modified(&self) -> Option<SystemTime> {
+        match &self.inner {
+            FsEntry::File(f) => f.modified,
+            FsEntry::Dir(_) => None,
+        }
+    }
+
+    pub fn as_file(&self) -> Option<&CoreFileEntry> {
+        match &self.inner {
+            FsEntry::File(f) => Some(f),
+            FsEntry::Dir(_) => None,
+        }
+    }
+
+    pub fn fs_entry(&self) -> &FsEntry {
+        &self.inner
+    }
+
     pub fn type_label(&self, bundle: &LanguageBundle) -> String {
-        if self.is_dir {
+        if self.is_dir() {
             return bundle.tr(ids::ENTRY_FOLDER);
         }
 
         let extension = self.path.extension().or_else(|| {
-            std::path::Path::new(&self.name)
+            std::path::Path::new(self.name())
                 .extension()
                 .and_then(|ext| ext.to_str())
                 .map(str::to_ascii_lowercase)
@@ -69,14 +85,14 @@ impl FileEntry {
     }
 
     pub fn size_label(&self, bundle: &LanguageBundle) -> String {
-        if self.is_dir {
+        if self.is_dir() {
             return String::new();
         }
-        bundle.format_size(self.size)
+        bundle.format_size(self.size())
     }
 
     pub fn modified_label(&self, bundle: &LanguageBundle) -> String {
-        self.modified
+        self.modified()
             .map(|time| bundle.format_datetime(time))
             .unwrap_or_default()
     }

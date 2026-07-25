@@ -1260,6 +1260,7 @@ dependencies = [
  "icu_locale",
  "image",
  "office_oxide",
+ "open",
  "pdf-extract",
  "unic-langid",
 ]

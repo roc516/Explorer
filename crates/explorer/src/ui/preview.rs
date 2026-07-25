@@ -2,8 +2,8 @@ mod document;
 mod image;
 mod text;
 
-use explorer_core::EPath;
 use explorer_app::{ids, LanguageBundle, PreviewFile, PreviewKind};
+use explorer_core::FsEntry;
 use fluent::{FluentArgs, FluentValue};
 use iced::widget::{
     button, container, scrollable,
@@ -21,7 +21,7 @@ use crate::ui::style::{error_text, secondary_button};
 
 #[derive(Debug, Clone)]
 pub struct PreviewState {
-    pub open_path: EPath,
+    pub source: FsEntry,
     pub name: String,
     pub loading: bool,
     pub file: Option<PreviewFile>,
@@ -32,8 +32,13 @@ pub struct PreviewState {
 }
 
 impl PreviewState {
-    pub fn opening(open_path: EPath, name: String) -> Self {
-        Self { open_path,
+    pub fn opening(source: FsEntry) -> Self {
+        let name = match &source {
+            FsEntry::File(file) => file.name.clone(),
+            FsEntry::Dir(dir) => dir.name.clone(),
+        };
+        Self {
+            source,
             name,
             loading: true,
             file: None,
@@ -53,9 +58,9 @@ impl PreviewState {
     }
 }
 
-pub fn load_preview_task(path: EPath) -> Task<preview::Message> {
+pub fn load_preview_task(entry: FsEntry) -> Task<preview::Message> {
     Task::perform(
-        async move { explorer_app::load_preview(&path) },
+        async move { explorer_app::load_preview(&entry) },
         preview::Message::Loaded,
     )
 }

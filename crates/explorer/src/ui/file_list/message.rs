@@ -1,4 +1,4 @@
-use explorer_core::{BlockDevice, EPath};
+use explorer_core::{BlockDevice, EPath, FsEntry};
 use explorer_app::FileEntry;
 
 use super::columns::Column;
@@ -20,6 +20,6 @@ pub enum Action {
     Navigated(EPath),
     /// Directory listing finished (sync address bar + tree).
     DirectoryLoaded(EPath),
-    PreviewFile(EPath),
+    PreviewFile(FsEntry),
     OpenArchive(BlockDevice),
 }

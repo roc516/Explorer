@@ -25,7 +25,7 @@ pub enum StatusInfo {
 #[derive(Debug, Clone)]
 pub enum OpenEntryAction {
     Navigate(EPath),
-    Preview(EPath),
+    Preview(explorer_core::FsEntry),
     OpenArchive(BlockDevice),
     OpenedSystem { name: String },
 }
@@ -142,33 +142,33 @@ impl ExplorerModel {
     }
 
     pub fn select_path(&mut self, path: &EPath) {
-        self.selected_index = self.entries.iter().position(|entry| entry.path == *path);
+        self.selected_index = self.entries.iter().position(|entry| entry.path() == path);
     }
 
     pub fn open_entry(&mut self, index: usize) -> Option<OpenEntryAction> {
         let entry = self.entries.get(index)?;
 
-        if entry.is_dir {
+        if entry.is_dir() {
             return self
-                .navigate(entry.path.clone())
+                .navigate(entry.path().clone())
                 .map(OpenEntryAction::Navigate);
         }
 
-        if let Some(archive) = entry.path.as_mountable_device() {
+        if let Some(archive) = entry.path().as_mountable_device() {
             return Some(OpenEntryAction::OpenArchive(archive));
         }
 
-        if preview::is_previewable(&entry.path) {
-            return Some(OpenEntryAction::Preview(entry.path.clone()));
+        if preview::is_previewable(entry.fs_entry()) {
+            return Some(OpenEntryAction::Preview(entry.fs_entry().clone()));
         }
 
-        match entry.path.open_with_system() {
+        match entry.path().open_with_system() {
             Ok(()) => {
                 self.status = StatusInfo::Opened {
-                    name: entry.name.clone(),
+                    name: entry.name().to_string(),
                 };
                 Some(OpenEntryAction::OpenedSystem {
-                    name: entry.name.clone(),
+                    name: entry.name().to_string(),
                 })
             }
             Err(message) => {

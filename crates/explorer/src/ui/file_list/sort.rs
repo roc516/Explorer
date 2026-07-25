@@ -32,7 +32,7 @@ pub(crate) fn apply_sort(model: &mut ExplorerModel, sort: SortState) {
 
     let selected_path = model
         .selected_index
-        .and_then(|index| model.entries.get(index).map(|entry| entry.path.clone()));
+        .and_then(|index| model.entries.get(index).map(|entry| entry.path().clone()));
 
     model
         .entries
@@ -42,7 +42,7 @@ pub(crate) fn apply_sort(model: &mut ExplorerModel, sort: SortState) {
         model
             .entries
             .iter()
-            .position(|entry| entry.path == path)
+            .position(|entry| entry.path() == &path)
     });
 }
 
@@ -52,7 +52,7 @@ fn compare_entries(
     sort: SortState,
     bundle: &explorer_app::LanguageBundle,
 ) -> Ordering {
-    let folder_order = match (left.is_dir, right.is_dir) {
+    let folder_order = match (left.is_dir(), right.is_dir()) {
         (true, false) => Ordering::Less,
         (false, true) => Ordering::Greater,
         _ => Ordering::Equal,
@@ -63,10 +63,10 @@ fn compare_entries(
     } else {
         match sort.column {
             Column::Name => left
-                .name
+                .name()
                 .to_lowercase()
-                .cmp(&right.name.to_lowercase()),
-            Column::Modified => match (left.modified, right.modified) {
+                .cmp(&right.name().to_lowercase()),
+            Column::Modified => match (left.modified(), right.modified()) {
                 (None, None) => Ordering::Equal,
                 (None, Some(_)) => Ordering::Greater,
                 (Some(_), None) => Ordering::Less,
@@ -76,14 +76,14 @@ fn compare_entries(
                 .type_label(bundle)
                 .to_lowercase()
                 .cmp(&right.type_label(bundle).to_lowercase()),
-            Column::Size => left.size.cmp(&right.size),
+            Column::Size => left.size().cmp(&right.size()),
         }
     };
 
     let tie_breaker = left
-        .name
+        .name()
         .to_lowercase()
-        .cmp(&right.name.to_lowercase());
+        .cmp(&right.name().to_lowercase());
 
     let ordering = column_order.then(tie_breaker);
 
