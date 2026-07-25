@@ -4,6 +4,10 @@ use encoding_rs::{GBK, UTF_16BE, UTF_16LE, WINDOWS_1252};
 use explorer_core::FileEntry;
 
 const DETECT_PREFIX: usize = 64 * 1024;
+/// Cap displayed characters per logical line so the UI stays responsive.
+const MAX_LINE_CHARS: usize = 4096;
+/// Max bytes read per logical line (UTF-8 worst case / UTF-16 surrogates).
+const MAX_LINE_BYTES: usize = MAX_LINE_CHARS * 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextEncoding {
@@ -141,6 +145,9 @@ impl TextPreview {
     }
 
     /// Read and decode lines in `[start_line, end_line)`.
+    ///
+    /// Each logical line is read independently and capped at [`MAX_LINE_BYTES`],
+    /// so a huge line does not pull the remainder of the line from storage.
     pub fn read_lines(
         &self,
         offsets: &[u64],
@@ -153,22 +160,41 @@ impl TextPreview {
         }
         let encoding = self.resolve_encoding(selected);
         let end_line = end_line.min(offsets.len());
-        let start_off = offsets[start_line];
-        let end_off = if end_line < offsets.len() {
-            offsets[end_line]
-        } else {
-            self.size
-        };
-        if start_off >= self.size {
-            return Ok(vec![String::new(); end_line - start_line]);
-        }
-        let len = (end_off.saturating_sub(start_off)) as usize;
         let mut reader = self.file.open()?;
-        reader
-            .seek(SeekFrom::Start(start_off))
-            .map_err(|err| err.to_string())?;
-        let bytes = read_exact_up_to(&mut *reader, len)?;
-        split_and_decode(&bytes, end_line - start_line, encoding, start_line == 0)
+        let mut lines = Vec::with_capacity(end_line - start_line);
+
+        for index in start_line..end_line {
+            let start = offsets[index];
+            if start >= self.size {
+                lines.push(String::new());
+                continue;
+            }
+            let logical_end = if index + 1 < offsets.len() {
+                offsets[index + 1]
+            } else {
+                self.size
+            };
+            let capped_end = start.saturating_add(MAX_LINE_BYTES as u64).min(logical_end);
+            let capped = capped_end < logical_end;
+            let len = (capped_end - start) as usize;
+
+            reader
+                .seek(SeekFrom::Start(start))
+                .map_err(|err| err.to_string())?;
+            let mut bytes = read_exact_up_to(&mut *reader, len)?;
+            clamp_encoded_bytes(&mut bytes, encoding);
+
+            let strip_bom = index == 0 && start == 0;
+            let decoded = decode_window(&bytes, encoding, strip_bom)?;
+            let trimmed = decoded.trim_end_matches(['\r', '\n']);
+            let mut line = truncate_line(trimmed);
+            if capped && !line.ends_with('…') {
+                line.push('…');
+            }
+            lines.push(line);
+        }
+
+        Ok(lines)
     }
 }
 
@@ -265,25 +291,47 @@ fn is_utf16_newline(pair: &[u8; 2], little_endian: bool) -> bool {
     }
 }
 
-fn split_and_decode(
-    bytes: &[u8],
-    expected_lines: usize,
-    encoding: TextEncoding,
-    strip_bom: bool,
-) -> Result<Vec<String>, String> {
-    let text = decode_window(bytes, encoding, strip_bom)?;
-    let mut lines: Vec<String> = text.split('\n').map(|line| line.trim_end_matches('\r').to_string()).collect();
+fn clamp_encoded_bytes(bytes: &mut Vec<u8>, encoding: TextEncoding) {
+    match encoding {
+        TextEncoding::Utf16Le | TextEncoding::Utf16Be => {
+            if bytes.len() % 2 == 1 {
+                bytes.pop();
+            }
+        }
+        TextEncoding::Utf8 => {
+            while !bytes.is_empty() && std::str::from_utf8(bytes).is_err() {
+                bytes.pop();
+            }
+        }
+        TextEncoding::Gbk => {
+            if bytes.is_empty() {
+                return;
+            }
+            let (_, _, had_errors) = GBK.decode(bytes);
+            if had_errors {
+                bytes.pop();
+            }
+        }
+        TextEncoding::Latin1 | TextEncoding::Auto => {}
+    }
+}
 
-    // `split` yields at least one element; trailing newline adds an empty final piece.
-    // Cap / pad to the expected line count from the index.
-    if lines.len() > expected_lines {
-        lines.truncate(expected_lines);
-    } else {
-        while lines.len() < expected_lines {
-            lines.push(String::new());
+fn truncate_line(line: &str) -> String {
+    let mut end = line.len();
+    let mut truncated = false;
+    for (count, (i, _)) in line.char_indices().enumerate() {
+        if count == MAX_LINE_CHARS {
+            end = i;
+            truncated = true;
+            break;
         }
     }
-    Ok(lines)
+    if !truncated {
+        return line.to_string();
+    }
+    let mut out = line[..end].to_string();
+    out.push('…');
+    out
 }
 
 fn decode_window(
