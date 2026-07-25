@@ -15,17 +15,14 @@ tree-no-locations = 无可用位置
 
 window-title = Explorer
 
-toolbar-address = 地址
 toolbar-address-placeholder = 输入路径后按 Enter 跳转...
 toolbar-theme = 主题
 toolbar-language = 语言
 
 settings-title = 设置
 
-preview-loading = 正在加载预览...
 preview-load-failed = 无法加载预览
 preview-too-large = 文件过大，无法预览
-preview-not-utf8 = 无法以文本格式预览此文件
 preview-not-file = 无法预览此项目
 preview-unsupported = 不支持预览此文件类型
 preview-unsupported-type = 不支持预览 { $extension } 文件

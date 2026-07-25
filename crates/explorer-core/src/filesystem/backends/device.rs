@@ -38,16 +38,6 @@ impl DeviceId {
         }
     }
 
-    pub fn host_path(&self) -> Option<&Path> {
-        match self {
-            DeviceId::Host(path) if !path.as_os_str().is_empty() => Some(path.as_path()),
-            _ => None,
-        }
-    }
-
-    pub fn is_host_disk(&self) -> bool {
-        matches!(self, DeviceId::Host(path) if path.as_os_str().is_empty())
-    }
 }
 
 /// A block device that can be mounted by a filesystem backend.

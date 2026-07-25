@@ -102,14 +102,6 @@ pub fn open_with_system(entry: &FsEntry) -> Result<(), String> {
     open::that(&path).map_err(|err| err.to_string())
 }
 
-pub fn is_previewable_extension(ext: &str) -> bool {
-    text_preview::is_extension(ext)
-        || image_preview::is_extension(ext)
-        || word_preview::is_extension(ext)
-        || ppt_preview::is_extension(ext)
-        || pdf_preview::is_extension(ext)
-}
-
 pub fn is_previewable(entry: &FsEntry) -> bool {
     matches!(entry, FsEntry::File(_))
 }

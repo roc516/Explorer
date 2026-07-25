@@ -19,17 +19,14 @@ tree-no-locations = No locations available
 
 window-title = Explorer
 
-toolbar-address = Address
 toolbar-address-placeholder = Enter path and press Enter...
 toolbar-theme = Theme
 toolbar-language = Language
 
 settings-title = Settings
 
-preview-loading = Loading preview...
 preview-load-failed = Failed to load preview
 preview-too-large = File is too large to preview
-preview-not-utf8 = File is not valid UTF-8 text
 preview-not-file = This item cannot be previewed
 preview-unsupported = Preview is not supported for this file type
 preview-unsupported-type = Preview is not supported for .{ $extension } files

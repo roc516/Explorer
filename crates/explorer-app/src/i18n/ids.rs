@@ -15,17 +15,14 @@ pub const TREE_NO_LOCATIONS: &str = "tree-no-locations";
 
 pub const WINDOW_TITLE: &str = "window-title";
 
-pub const TOOLBAR_ADDRESS: &str = "toolbar-address";
 pub const TOOLBAR_ADDRESS_PLACEHOLDER: &str = "toolbar-address-placeholder";
 pub const TOOLBAR_THEME: &str = "toolbar-theme";
 pub const TOOLBAR_LANGUAGE: &str = "toolbar-language";
 
 pub const SETTINGS_TITLE: &str = "settings-title";
 
-pub const PREVIEW_LOADING: &str = "preview-loading";
 pub const PREVIEW_LOAD_FAILED: &str = "preview-load-failed";
 pub const PREVIEW_TOO_LARGE: &str = "preview-too-large";
-pub const PREVIEW_NOT_UTF8: &str = "preview-not-utf8";
 pub const PREVIEW_NOT_FILE: &str = "preview-not-file";
 pub const PREVIEW_UNSUPPORTED: &str = "preview-unsupported";
 pub const PREVIEW_UNSUPPORTED_TYPE: &str = "preview-unsupported-type";

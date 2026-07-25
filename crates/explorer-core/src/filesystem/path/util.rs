@@ -1,20 +1,9 @@
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 pub fn file_name_of(path: &Path) -> String {
     path.file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default()
-}
-
-/// Entry / directory name relative to a mount root (`""`, `"folder"`, `"a/b"`).
-pub fn mount_entry_name(path: &Path) -> String {
-    path.components()
-        .filter_map(|component| match component {
-            Component::Normal(name) => Some(name.to_string_lossy().into_owned()),
-            _ => None,
-        })
-        .collect::<Vec<_>>()
-        .join("/")
 }
 
 /// Parent of an in-window navigation path.
