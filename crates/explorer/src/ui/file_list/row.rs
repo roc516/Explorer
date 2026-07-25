@@ -7,7 +7,7 @@ use crate::fluent::{RADIUS_CONTROL, SPACE_XS};
 use crate::widget::LucideIcon;
 
 use super::cell::{clipped_cell, column_gap};
-use super::columns::{ColumnWidths, COL_ICON};
+use super::columns::{Column, ColumnOrder, ColumnWidths, COL_ICON};
 use super::message::Message;
 
 pub(crate) fn file_row<'a>(
@@ -15,33 +15,31 @@ pub(crate) fn file_row<'a>(
     entry: &'a FileEntry,
     selected: bool,
     bundle: &explorer_app::LanguageBundle,
+    order: ColumnOrder,
     widths: &ColumnWidths,
 ) -> Element<'a, Message> {
     let modified = entry.modified_label(bundle);
     let type_label = entry.type_label(bundle);
     let size = entry.size_label(bundle);
 
-    let content = row![
-        container(LucideIcon::new(if entry.is_dir() {
-            Icon::Folder
-        } else {
-            Icon::File
-        }))
-        .width(Length::Fixed(COL_ICON))
-        .align_x(alignment::Horizontal::Center)
-        .align_y(alignment::Vertical::Center),
-        clipped_cell(entry.name(), widths.name, 14.0),
-        column_gap(),
-        clipped_cell(modified, widths.modified, 13.0),
-        column_gap(),
-        clipped_cell(type_label, widths.type_, 13.0),
-        column_gap(),
-        clipped_cell(size, widths.size, 13.0),
-        Space::new().width(Fill),
-    ]
-    .spacing(0)
-    .align_y(alignment::Vertical::Center)
-    .width(Fill);
+    let mut cells: Vec<Element<'a, Message>> = Vec::new();
+    for (i, &column) in order.as_slice().iter().enumerate() {
+        if i > 0 {
+            cells.push(column_gap());
+        }
+        cells.push(match column {
+            Column::Name => name_cell(entry, widths.name),
+            Column::Modified => clipped_cell(modified.clone(), widths.modified, 13.0),
+            Column::Type => clipped_cell(type_label.clone(), widths.type_, 13.0),
+            Column::Size => clipped_cell(size.clone(), widths.size, 13.0),
+        });
+    }
+    cells.push(Space::new().width(Fill).into());
+
+    let content = row(cells)
+        .spacing(0)
+        .align_y(alignment::Vertical::Center)
+        .width(Fill);
 
     mouse_area(
         container(content)
@@ -55,6 +53,23 @@ pub(crate) fn file_row<'a>(
     )
     .on_press(Message::EntryClicked(index))
     .on_double_click(Message::EntryDoubleClicked(index))
+    .into()
+}
+
+fn name_cell<'a>(entry: &'a FileEntry, name_width: f32) -> Element<'a, Message> {
+    row![
+        container(LucideIcon::new(if entry.is_dir() {
+            Icon::Folder
+        } else {
+            Icon::File
+        }))
+        .width(Length::Fixed(COL_ICON))
+        .align_x(alignment::Horizontal::Center)
+        .align_y(alignment::Vertical::Center),
+        clipped_cell(entry.name(), name_width, 14.0),
+    ]
+    .spacing(0)
+    .align_y(alignment::Vertical::Center)
     .into()
 }
 

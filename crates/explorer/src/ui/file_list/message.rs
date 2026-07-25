@@ -16,7 +16,12 @@ pub enum Message {
     ColumnResizeStarted(Column),
     ColumnResizeMoved(f32),
     ColumnResizeEnded,
+    ColumnReorderStarted(Column),
+    ColumnReorderMoved(f32),
+    ColumnReorderEnded,
     ColumnSortClicked(Column),
+    ColumnHandleHovered(Column),
+    ColumnHandleUnhovered(Column),
 }
 
 #[derive(Debug, Clone)]

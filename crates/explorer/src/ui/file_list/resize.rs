@@ -26,6 +26,22 @@ pub(crate) fn column_resize_listener(
     }
 }
 
+pub(crate) fn column_reorder_listener(
+    event: Event,
+    _status: Status,
+    _window: iced::window::Id,
+) -> Option<Message> {
+    match event {
+        Event::Mouse(mouse::Event::CursorMoved { position }) => {
+            Some(Message::ColumnReorderMoved(position.x))
+        }
+        Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
+            Some(Message::ColumnReorderEnded)
+        }
+        _ => None,
+    }
+}
+
 pub(crate) fn column_divider(column: Column, active: bool) -> Element<'static, Message> {
     mouse_area(
         container(divider_line(active))
@@ -37,6 +53,15 @@ pub(crate) fn column_divider(column: Column, active: bool) -> Element<'static, M
     .on_press(Message::ColumnResizeStarted(column))
     .interaction(Interaction::ResizingColumn)
     .into()
+}
+
+pub(crate) fn insert_indicator(active: bool) -> Element<'static, Message> {
+    container(divider_line(active))
+        .width(Length::Fixed(SPACE_SM))
+        .height(Length::Fixed(HEIGHT_LIST_ROW))
+        .align_x(alignment::Horizontal::Center)
+        .align_y(alignment::Vertical::Center)
+        .into()
 }
 
 fn divider_line(active: bool) -> Element<'static, Message> {
