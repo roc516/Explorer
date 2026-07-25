@@ -434,22 +434,60 @@ impl Explorer {
                 }
             }
             preview::Message::EncodingSelected(encoding) => {
-                let bundle = self.model.bundle.clone();
-                if let Some(state) = &mut self.preview_state {
-                    if let (Some(text), Some(file)) = (&mut state.text, &mut state.file) {
-                        text.select_encoding(
-                            file,
-                            encoding,
-                            || bundle.tr(ids::PREVIEW_DECODE_FAILED),
-                            || bundle.tr(ids::PREVIEW_LOAD_FAILED),
-                        );
+                let task = if let Some(state) = &mut self.preview_state {
+                    if let (Some(text), Some(file)) = (&mut state.text, state.file.as_ref()) {
+                        if let explorer_app::PreviewKind::Text(preview) = &file.kind {
+                            let preview = preview.clone();
+                            text.select_encoding(&preview, encoding)
+                        } else {
+                            Task::none()
+                        }
+                    } else {
+                        Task::none()
                     }
-                }
+                } else {
+                    Task::none()
+                };
+                return task.map(window_msg::Message::Preview);
             }
-            preview::Message::TextEditor(action) => {
+            preview::Message::TextScrolled(y) => {
+                let task = if let Some(state) = &mut self.preview_state {
+                    if let (Some(text), Some(file)) = (&mut state.text, state.file.as_ref()) {
+                        if let explorer_app::PreviewKind::Text(preview) = &file.kind {
+                            let preview = preview.clone();
+                            text.on_scroll(&preview, y)
+                        } else {
+                            Task::none()
+                        }
+                    } else {
+                        Task::none()
+                    }
+                } else {
+                    Task::none()
+                };
+                return task.map(window_msg::Message::Preview);
+            }
+            preview::Message::TextIndexLoaded { id, result } => {
+                let task = if let Some(state) = &mut self.preview_state {
+                    if let (Some(text), Some(file)) = (&mut state.text, state.file.as_ref()) {
+                        if let explorer_app::PreviewKind::Text(preview) = &file.kind {
+                            let preview = preview.clone();
+                            text.apply_index(&preview, id, result)
+                        } else {
+                            Task::none()
+                        }
+                    } else {
+                        Task::none()
+                    }
+                } else {
+                    Task::none()
+                };
+                return task.map(window_msg::Message::Preview);
+            }
+            preview::Message::TextWindowLoaded { id, start, result } => {
                 if let Some(state) = &mut self.preview_state {
                     if let Some(text) = &mut state.text {
-                        text.handle_editor_action(action);
+                        text.apply_window(id, start, result);
                     }
                 }
             }

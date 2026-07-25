@@ -7,7 +7,16 @@ pub enum Message {
     Loaded(Result<PreviewFile, String>),
     OpenExternal,
     EncodingSelected(TextEncoding),
-    TextEditor(text_editor::Action),
+    TextScrolled(f32),
+    TextIndexLoaded {
+        id: u64,
+        result: Result<Vec<u64>, String>,
+    },
+    TextWindowLoaded {
+        id: u64,
+        start: usize,
+        result: Result<Vec<String>, String>,
+    },
     DocumentEditor(text_editor::Action),
     ImageZoomIn,
     ImageZoomOut,

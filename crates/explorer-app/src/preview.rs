@@ -13,7 +13,7 @@ pub use hex_preview::HexPreview;
 pub use image_preview::ImagePreview;
 pub use pdf_preview::PdfPreview;
 pub use ppt_preview::PptPreview;
-pub use text_preview::{TextEncoding, TextPreview};
+pub use text_preview::{needs_reindex, TextEncoding, TextPreview};
 pub use word_preview::WordPreview;
 
 #[derive(Debug, Clone)]
@@ -34,10 +34,10 @@ pub struct PreviewFile {
     pub kind: PreviewKind,
 }
 
-/// Load preview content from a listed [`FsEntry`] (no path re-resolve).
+/// Load preview metadata / content from a listed [`FsEntry`] (no path re-resolve).
 ///
-/// Opens a streaming reader; each previewer rejects oversized files by
-/// declared size, then reads only when within its limit.
+/// Text and hex keep a content handle and load on demand; other previewers may
+/// reject oversized files by declared size, then read when within their limit.
 pub fn load_preview(entry: &FsEntry) -> Result<PreviewFile, String> {
     let FsEntry::File(file) = entry else {
         return Err("preview-not-file".to_string());
@@ -52,7 +52,7 @@ pub fn load_preview(entry: &FsEntry) -> Result<PreviewFile, String> {
 
     let kind = match extension.as_deref() {
         Some(ext) if text_preview::is_extension(ext) => {
-            PreviewKind::Text(text_preview::load(&mut *file.open()?, size)?)
+            PreviewKind::Text(text_preview::load(file)?)
         }
         Some(ext) if image_preview::is_extension(ext) => {
             PreviewKind::Image(image_preview::load(&mut *file.open()?, size)?)

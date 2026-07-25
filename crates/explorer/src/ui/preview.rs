@@ -54,9 +54,19 @@ impl PreviewState {
 
     pub fn set_loaded_file(&mut self, file: PreviewFile) -> Task<preview::Message> {
         self.error = None;
-        self.text = text::Text::for_file(&file);
         self.image = image::Image::for_file(&file);
         self.document = document::Document::for_file(&file);
+
+        let text_task = match text::Text::for_file(&file) {
+            Some((text, task)) => {
+                self.text = Some(text);
+                task
+            }
+            None => {
+                self.text = None;
+                Task::none()
+            }
+        };
         let hex_task = match hex::Hex::for_file(&file) {
             Some((hex, task)) => {
                 self.hex = Some(hex);
@@ -68,7 +78,7 @@ impl PreviewState {
             }
         };
         self.file = Some(file);
-        hex_task
+        Task::batch([text_task, hex_task])
     }
 }
 
@@ -191,10 +201,10 @@ fn body_for_file<'a>(
     state: &'a PreviewState,
 ) -> Element<'a, preview::Message> {
     match &file.kind {
-        PreviewKind::Text(_) => state
+        PreviewKind::Text(text_preview) => state
             .text
             .as_ref()
-            .map(|text| text::view(bundle, text))
+            .map(|text| text::view(bundle, text_preview, text))
             .unwrap_or_else(|| preview_message(bundle.tr(ids::PREVIEW_LOAD_FAILED), true)),
         PreviewKind::Image(image_preview) => state
             .image
