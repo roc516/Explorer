@@ -15,9 +15,8 @@ use crate::message::{input, preview, settings, theme, window as window_msg, Mess
 use crate::theme::AppTheme;
 use crate::ui::directory_tree::{self, Action as TreeAction, DirectoryTree};
 use crate::ui::file_list::{self, Action as FileListAction, FileList};
-use crate::ui::modal as modal_overlay;
-use crate::ui::preview_dialog::{self, PreviewDialog, PreviewState};
-use crate::ui::settings_dialog::{self, SettingsDialog};
+use crate::ui::preview::{self as preview_ui, Preview, PreviewState};
+use crate::ui::settings::{self as settings_ui, Settings};
 use crate::ui::status_bar::StatusBar;
 use crate::ui::toolbar::{self, Action as ToolbarAction, Toolbar};
 
@@ -27,7 +26,7 @@ const WINDOW_HEIGHT: f32 = 760.0;
 pub struct App {
     windows: BTreeMap<window::Id, Explorer>,
     focused_window: Option<window::Id>,
-    settings_dialog: SettingsDialog,
+    settings: Settings,
     settings_open: bool,
     theme_choice: AppTheme,
     system_mode: Mode,
@@ -41,8 +40,8 @@ struct Explorer {
     directory_tree: DirectoryTree,
     file_list: FileList,
     status_bar: StatusBar,
-    preview_dialog: PreviewDialog,
-    preview: Option<PreviewState>,
+    preview: Preview,
+    preview_state: Option<PreviewState>,
 }
 
 impl App {
@@ -60,7 +59,7 @@ impl App {
             Self {
                 windows: BTreeMap::new(),
                 focused_window: None,
-                settings_dialog: SettingsDialog::new(),
+                settings: Settings::new(),
                 settings_open: false,
                 theme_choice: AppTheme::System,
                 system_mode: Mode::default(),
@@ -99,13 +98,10 @@ impl App {
 
         stack![
             content,
-            modal_overlay::overlay(
-                self.settings_dialog.view(
-                    window.model.bundle.clone(),
-                    self.theme_choice,
-                    self.language,
-                ),
-                Message::Settings(settings::Message::Close),
+            self.settings.view(
+                window.model.bundle.clone(),
+                self.theme_choice,
+                self.language,
             ),
         ]
         .width(Fill)
@@ -255,13 +251,12 @@ impl App {
             settings::Message::Close => {
                 self.settings_open = false;
             }
-            settings::Message::PressInside => {}
         }
         Task::none()
     }
 
-    fn update_locale(&mut self, message: settings_dialog::locale::Message) -> Task<Message> {
-        let settings_dialog::locale::Message::Selected(language) = message;
+    fn update_locale(&mut self, message: settings_ui::locale::Message) -> Task<Message> {
+        let settings_ui::locale::Message::Selected(language) = message;
         self.language = language;
         let locale = self.language.resolve(self.system_locale);
         for window in self.windows.values_mut() {
@@ -282,8 +277,8 @@ impl Explorer {
             directory_tree: DirectoryTree::new(),
             file_list: FileList::new(),
             status_bar: StatusBar::new(),
-            preview_dialog: PreviewDialog::new(),
-            preview: None,
+            preview: Preview::new(),
+            preview_state: None,
         }
     }
 
@@ -297,8 +292,8 @@ impl Explorer {
             directory_tree: DirectoryTree::for_mounted(device),
             file_list: FileList::new(),
             status_bar: StatusBar::new(),
-            preview_dialog: PreviewDialog::new(),
-            preview: None,
+            preview: Preview::new(),
+            preview_state: None,
         }
     }
 
@@ -333,23 +328,17 @@ impl Explorer {
         .height(Fill)
         .into();
 
-        let Some(preview) = &self.preview else {
+        let Some(preview_state) = &self.preview_state else {
             return main;
         };
 
         stack![
             main,
-            modal_overlay::overlay(
-                self.preview_dialog
-                    .view(bundle, preview)
-                    .map(move |message| {
-                        Message::Window(window_id, window_msg::Message::Preview(message))
-                    }),
-                Message::Window(
-                    window_id,
-                    window_msg::Message::Preview(preview::Message::Close),
-                ),
-            ),
+            self.preview
+                .view(bundle, preview_state)
+                .map(move |message| {
+                    Message::Window(window_id, window_msg::Message::Preview(message))
+                }),
         ]
         .width(Fill)
         .height(Fill)
@@ -410,19 +399,18 @@ impl Explorer {
 
     fn open_preview(&mut self, path: EPath) -> Task<preview::Message> {
         let name = path.file_name();
-        self.preview = Some(PreviewState::opening(path.clone(), name));
-        preview_dialog::load_preview_task(path)
+        self.preview_state = Some(PreviewState::opening(path.clone(), name));
+        preview_ui::load_preview_task(path)
     }
 
     fn update_preview(&mut self, message: preview::Message) -> Task<window_msg::Message> {
         match message {
             preview::Message::Close => {
-                self.preview = None;
+                self.preview_state = None;
             }
-            preview::Message::PressInside => {}
             preview::Message::Loaded(result) => {
                 let bundle = self.model.bundle.clone();
-                if let Some(state) = &mut self.preview {
+                if let Some(state) = &mut self.preview_state {
                     state.loading = false;
                     match result {
                         Ok(file) => state.set_loaded_file(file),
@@ -441,9 +429,9 @@ impl Explorer {
                 }
             }
             preview::Message::OpenExternal => {
-                if let Some(source) = self.preview.as_ref().map(|state| state.open_path.clone()) {
+                if let Some(source) = self.preview_state.as_ref().map(|state| state.open_path.clone()) {
                     if let Err(message) = source.open_with_system() {
-                        if let Some(state) = &mut self.preview {
+                        if let Some(state) = &mut self.preview_state {
                             state.error = Some(message);
                         }
                     }
@@ -451,7 +439,7 @@ impl Explorer {
             }
             preview::Message::EncodingSelected(encoding) => {
                 let bundle = self.model.bundle.clone();
-                if let Some(state) = &mut self.preview {
+                if let Some(state) = &mut self.preview_state {
                     if let (Some(text), Some(file)) = (&mut state.text, &mut state.file) {
                         text.select_encoding(
                             file,
@@ -463,42 +451,42 @@ impl Explorer {
                 }
             }
             preview::Message::TextEditor(action) => {
-                if let Some(state) = &mut self.preview {
+                if let Some(state) = &mut self.preview_state {
                     if let Some(text) = &mut state.text {
                         text.handle_editor_action(action);
                     }
                 }
             }
             preview::Message::DocumentEditor(action) => {
-                if let Some(state) = &mut self.preview {
+                if let Some(state) = &mut self.preview_state {
                     if let Some(document) = &mut state.document {
                         document.handle_editor_action(action);
                     }
                 }
             }
             preview::Message::ImageZoomIn => {
-                if let Some(state) = &mut self.preview {
+                if let Some(state) = &mut self.preview_state {
                     if let Some(image) = &mut state.image {
                         image.zoom_in();
                     }
                 }
             }
             preview::Message::ImageZoomOut => {
-                if let Some(state) = &mut self.preview {
+                if let Some(state) = &mut self.preview_state {
                     if let Some(image) = &mut state.image {
                         image.zoom_out();
                     }
                 }
             }
             preview::Message::ImageZoomReset => {
-                if let Some(state) = &mut self.preview {
+                if let Some(state) = &mut self.preview_state {
                     if let Some(image) = &mut state.image {
                         image.reset();
                     }
                 }
             }
             preview::Message::ImageWheelZoom(factor) => {
-                if let Some(state) = &mut self.preview {
+                if let Some(state) = &mut self.preview_state {
                     if let Some(image) = &mut state.image {
                         image.wheel_zoom(factor);
                     }
@@ -534,7 +522,7 @@ impl Explorer {
         }
 
         match key {
-            keyboard::Key::Named(keyboard::key::Named::Escape) if self.preview.is_some() => {
+            keyboard::Key::Named(keyboard::key::Named::Escape) if self.preview_state.is_some() => {
                 self.update_preview(preview::Message::Close)
             }
             keyboard::Key::Named(keyboard::key::Named::Escape) if settings_open => Task::none(),
@@ -545,7 +533,7 @@ impl Explorer {
                     .cancel_address_edit(&self.model.current_path);
                 Task::none()
             }
-            _ if self.preview.is_some() || settings_open => Task::none(),
+            _ if self.preview_state.is_some() || settings_open => Task::none(),
             keyboard::Key::Named(keyboard::key::Named::Enter) => {
                 if let Some(index) = self.model.selected_index {
                     let (task, _) =

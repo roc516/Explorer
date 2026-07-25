@@ -4,7 +4,6 @@ use iced::widget::text_editor;
 #[derive(Debug, Clone)]
 pub enum Message {
     Close,
-    PressInside,
     Loaded(Result<PreviewFile, String>),
     OpenExternal,
     EncodingSelected(TextEncoding),

@@ -1,7 +1,7 @@
 use std::fmt;
 
 use explorer_app::{ids, Language, LanguageBundle};
-use iced::widget::{button, column, container, mouse_area, pick_list, row, rule, text, Space};
+use iced::widget::{column, container, pick_list, row, rule, text, Space};
 use iced::{alignment, Element, Fill, Length, Theme};
 use lucide_icons::Icon;
 
@@ -10,11 +10,12 @@ use crate::fluent::{
 };
 use crate::message::{settings, theme, Message as AppMessage};
 use crate::theme::{theme_options, AppTheme};
-use crate::ui::style::{dialog_container, dialog_divider, icon_button, pick_list_style};
+use crate::ui::dialog::Dialog;
+use crate::ui::style::pick_list_style;
 use crate::widget::LucideIcon;
 
 pub mod locale {
-        use explorer_app::Language;
+    use explorer_app::Language;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum Message {
@@ -23,12 +24,10 @@ pub mod locale {
 }
 
 const THEME_MENU_HEIGHT: f32 = 280.0;
-const CLOSE_BUTTON_SIZE: f32 = 32.0;
-const CLOSE_ICON_SIZE: f32 = 16.0;
 
-pub struct SettingsDialog;
+pub struct Settings;
 
-impl SettingsDialog {
+impl Settings {
     pub fn new() -> Self {
         Self
     }
@@ -79,32 +78,24 @@ impl SettingsDialog {
         .width(Fill)
         .style(pick_list_style);
 
-        let body = column![
-            setting_row(theme_label, Icon::Palette, theme_picker.into()),
-            rule::horizontal(1).style(group_divider),
-            setting_row(language_label, Icon::Languages, language_picker.into()),
-        ]
-        .width(Fill);
-
-        let dialog = mouse_area(
-            container(
-                column![
-                    header(title),
-                    rule::horizontal(1).style(dialog_divider),
-                    container(body).padding([SPACE_MD, SPACE_LG]),
-                ]
-                .width(Fill),
-            )
-            .width(DIALOG_WIDTH_SETTINGS)
-            .style(dialog_container),
+        let body = container(
+            column![
+                setting_row(theme_label, Icon::Palette, theme_picker.into()),
+                rule::horizontal(1).style(group_divider),
+                setting_row(language_label, Icon::Languages, language_picker.into()),
+            ]
+            .width(Fill),
         )
-        .on_press(AppMessage::Settings(settings::Message::PressInside));
+        .padding([SPACE_MD, SPACE_LG]);
 
-        dialog.into()
+        Dialog::new(title, AppMessage::Settings(settings::Message::Close))
+            .width(DIALOG_WIDTH_SETTINGS)
+            .body(body)
+            .view()
     }
 }
 
-impl Default for SettingsDialog {
+impl Default for Settings {
     fn default() -> Self {
         Self::new()
     }
@@ -126,31 +117,6 @@ impl fmt::Display for LanguageOption {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.label)
     }
-}
-
-fn header(title: String) -> Element<'static, AppMessage> {
-    row![
-        text(title).size(14),
-        Space::new().width(Fill),
-        button(
-            container(LucideIcon::new(Icon::X).size(CLOSE_ICON_SIZE).muted(0.72))
-                .width(Length::Fixed(CLOSE_BUTTON_SIZE))
-                .height(Length::Fixed(CLOSE_BUTTON_SIZE))
-                .align_x(alignment::Horizontal::Center)
-                .align_y(alignment::Vertical::Center),
-        )
-        .on_press(AppMessage::Settings(settings::Message::Close))
-        .width(Length::Fixed(CLOSE_BUTTON_SIZE))
-        .height(Length::Fixed(CLOSE_BUTTON_SIZE))
-        .padding(0)
-        .style(icon_button),
-    ]
-    .spacing(SPACE_SM)
-    .align_y(alignment::Vertical::Center)
-    .padding([SPACE_MD, SPACE_LG])
-    .height(Length::Fixed(HEIGHT_SETTING_ROW))
-    .width(Fill)
-    .into()
 }
 
 fn setting_row(
@@ -183,19 +149,5 @@ fn group_divider(theme: &Theme) -> rule::Style {
         radius: 0.0.into(),
         fill_mode: rule::FillMode::Full,
         snap: false,
-    }
-}
-
-pub fn backdrop(theme: &Theme) -> iced::widget::container::Style {
-    let palette = theme.extended_palette();
-    let dim = if palette.is_dark {
-        iced::Color::BLACK.scale_alpha(0.45)
-    } else {
-        iced::Color::BLACK.scale_alpha(0.32)
-    };
-
-    iced::widget::container::Style {
-        background: Some(iced::Background::Color(dim)),
-        ..Default::default()
     }
 }

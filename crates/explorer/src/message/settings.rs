@@ -2,5 +2,4 @@
 pub enum Message {
     Toggle,
     Close,
-    PressInside,
 }

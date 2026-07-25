@@ -1,8 +1,8 @@
+pub mod dialog;
 pub mod directory_tree;
 pub mod file_list;
-pub mod modal;
-pub mod preview_dialog;
-pub mod settings_dialog;
+pub mod preview;
+pub mod settings;
 pub mod status_bar;
 pub mod style;
 pub mod toolbar;

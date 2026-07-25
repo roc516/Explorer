@@ -6,19 +6,18 @@ use explorer_core::EPath;
 use explorer_app::{ids, LanguageBundle, PreviewFile, PreviewKind};
 use fluent::{FluentArgs, FluentValue};
 use iced::widget::{
-    button, column, container, mouse_area, rule, row, scrollable,
-    text as text_widget, text_editor as text_editor_widget, Space,
+    button, container, scrollable,
+    text as text_widget, text_editor as text_editor_widget,
 };
 use iced::widget::{scrollable::Direction, text_editor};
 use iced::{alignment, Element, Fill, Length, Task, Theme};
-use lucide_icons::Icon;
 
 use crate::fluent::{
-    DIALOG_WIDTH_PREVIEW, HEIGHT_PREVIEW_BODY, HEIGHT_PREVIEW_STATUS_BAR, SPACE_LG, SPACE_MD, SPACE_SM,
+    DIALOG_WIDTH_PREVIEW, HEIGHT_PREVIEW_BODY, HEIGHT_PREVIEW_STATUS_BAR, SPACE_LG, SPACE_MD,
 };
 use crate::message::preview;
-use crate::ui::style::{dialog_container, dialog_divider, error_text, icon_button, secondary_button};
-use crate::widget::{LucideIcon, wheel_blocker::WheelBlocker};
+use crate::ui::dialog::Dialog;
+use crate::ui::style::{error_text, secondary_button};
 
 #[derive(Debug, Clone)]
 pub struct PreviewState {
@@ -61,9 +60,9 @@ pub fn load_preview_task(path: EPath) -> Task<preview::Message> {
     )
 }
 
-pub struct PreviewDialog;
+pub struct Preview;
 
-impl PreviewDialog {
+impl Preview {
     pub fn new() -> Self {
         Self
     }
@@ -104,118 +103,62 @@ impl PreviewDialog {
             HEIGHT_PREVIEW_BODY
         };
 
-        let mut dialog_sections: Vec<Element<'a, preview::Message>> = vec![
-            dialog_header(state.name.clone(), open_label, !state.loading),
-            rule::horizontal(1).style(dialog_divider).into(),
-            container(body)
-                .padding(SPACE_LG)
-                .width(Fill)
-                .height(Length::Fixed(body_height))
-                .into(),
-        ];
+        let body = container(body)
+            .padding(SPACE_LG)
+            .width(Fill)
+            .height(Length::Fixed(body_height));
 
-        if show_status_bar {
-            if let Some(file) = &state.file {
-                match &file.kind {
-                    PreviewKind::Text(text_preview) => {
-                        if let Some(text) = &state.text {
-                            dialog_sections.push(rule::horizontal(1).style(dialog_divider).into());
-                            dialog_sections.push(text::status_bar(
-                                bundle,
-                                text,
-                                text_preview,
-                                file,
-                            ));
-                        }
-                    }
-                    PreviewKind::Image(image_preview) => {
-                        if let Some(image) = &state.image {
-                            dialog_sections.push(rule::horizontal(1).style(dialog_divider).into());
-                            dialog_sections.push(image::status_bar(
-                                bundle,
-                                image,
-                                image_preview,
-                                file,
-                            ));
-                        }
-                    }
-                    PreviewKind::Word(_) | PreviewKind::Ppt(_) | PreviewKind::Pdf(_) => {
-                        if state.document.is_some() {
-                            dialog_sections.push(rule::horizontal(1).style(dialog_divider).into());
-                            dialog_sections.push(document::status_bar(bundle, file));
-                        }
-                    }
-                    PreviewKind::Unsupported { .. } => {}
+        let footer = if show_status_bar {
+            state.file.as_ref().and_then(|file| match &file.kind {
+                PreviewKind::Text(text_preview) => state.text.as_ref().map(|text| {
+                    text::status_bar(bundle, text, text_preview, file)
+                }),
+                PreviewKind::Image(image_preview) => state.image.as_ref().map(|image| {
+                    image::status_bar(bundle, image, image_preview, file)
+                }),
+                PreviewKind::Word(_) | PreviewKind::Ppt(_) | PreviewKind::Pdf(_) => {
+                    state.document.as_ref().map(|_| document::status_bar(bundle, file))
                 }
-            }
+                PreviewKind::Unsupported { .. } => None,
+            })
+        } else {
+            None
+        };
+
+        let mut dialog = Dialog::new(state.name.clone(), preview::Message::Close)
+            .width(DIALOG_WIDTH_PREVIEW)
+            .body(body);
+
+        if !state.loading {
+            dialog = dialog.header_action(open_external_button(open_label));
         }
 
-        WheelBlocker::new(
-            mouse_area(
-                container(column(dialog_sections).width(Fill))
-                    .width(DIALOG_WIDTH_PREVIEW)
-                    .style(dialog_container),
-            )
-            .on_press(preview::Message::PressInside),
-        )
-        .into()
+        if let Some(footer) = footer {
+            dialog = dialog.footer(footer);
+        }
+
+        dialog.view()
     }
 }
 
-impl Default for PreviewDialog {
+impl Default for Preview {
     fn default() -> Self {
         Self::new()
     }
 }
 
-const CLOSE_BUTTON_SIZE: f32 = 32.0;
-const CLOSE_ICON_SIZE: f32 = 16.0;
-const HEADER_HEIGHT: f32 = 48.0;
-
-fn dialog_header(
-    title: String,
-    open_label: String,
-    can_open_external: bool,
-) -> Element<'static, preview::Message> {
-    let open_button: Element<'static, preview::Message> = if can_open_external {
-        button(
-            container(text_widget(open_label).size(13).line_height(iced::Pixels(18.0)))
-                .height(Length::Fixed(CLOSE_BUTTON_SIZE))
-                .padding([0.0, SPACE_MD])
-                .align_x(alignment::Horizontal::Center)
-                .align_y(alignment::Vertical::Center),
-        )
-        .on_press(preview::Message::OpenExternal)
-        .height(Length::Fixed(CLOSE_BUTTON_SIZE))
-        .padding(0)
-        .style(secondary_button)
-        .into()
-    } else {
-        Space::new().width(0).into()
-    };
-
-    row![
-        text_widget(title).size(14),
-        Space::new().width(Fill),
-        open_button,
-        button(
-            container(LucideIcon::new(Icon::X).size(CLOSE_ICON_SIZE).muted(0.72))
-                .width(Length::Fixed(CLOSE_BUTTON_SIZE))
-                .height(Length::Fixed(CLOSE_BUTTON_SIZE))
-                .align_x(alignment::Horizontal::Center)
-                .align_y(alignment::Vertical::Center),
-        )
-        .on_press(preview::Message::Close)
-        .width(Length::Fixed(CLOSE_BUTTON_SIZE))
-        .height(Length::Fixed(CLOSE_BUTTON_SIZE))
-        .padding(0)
-        .style(icon_button),
-    ]
-    .spacing(SPACE_SM)
-    .align_y(alignment::Vertical::Center)
-    .padding([SPACE_MD, SPACE_LG])
-    .height(Length::Fixed(HEADER_HEIGHT))
-    .width(Fill)
+fn open_external_button<'a>(label: String) -> Element<'a, preview::Message> {
+    button(
+        container(text_widget(label).size(13).line_height(iced::Pixels(18.0)))
+            .height(Length::Fixed(32.0))
+            .padding([0.0, SPACE_MD])
+            .align_x(alignment::Horizontal::Center)
+            .align_y(alignment::Vertical::Center),
+    )
+    .on_press(preview::Message::OpenExternal)
+    .height(Length::Fixed(32.0))
+    .padding(0)
+    .style(secondary_button)
     .into()
 }
 
