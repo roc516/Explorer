@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::entry::{mount_root_dir, DirEntry, FsEntry};
 use crate::filesystem::backends::{try_registry, BlockDevice, DeviceId, MountedDevice};
+use crate::filesystem::entry_at;
 
 use super::epath::EPath;
 use super::util::mount_entry_name;
@@ -75,7 +76,32 @@ impl Mounter {
             let mounted = Self::device(root)?;
             return Ok(mount_root_dir(String::new(), mounted));
         }
-        Self::dir_entry_at(root, &name)
+        match Self::fs_entry_at(root, relative)? {
+            FsEntry::Dir(dir) => Ok(dir),
+            FsEntry::File(_) => Err("not-a-directory".to_string()),
+        }
+    }
+
+    /// Resolve a path under a mount root to a single [`FsEntry`].
+    pub fn fs_entry_at(root: &EPath, relative: &Path) -> Result<FsEntry, String> {
+        if !Self::is_mount(root) {
+            return Err("not-a-mount-path".to_string());
+        }
+        entry_at(Self::device(root)?.as_ref(), relative)
+    }
+
+    /// Parse an address-bar string into a mount-internal navigation path.
+    pub fn parse_internal_path(input: &str, root: &EPath) -> PathBuf {
+        let Ok((container, _)) = Self::mount_ref(root) else {
+            return normalize_mount_path(input);
+        };
+        let container_display = container.display();
+        let prefix = format!("{container_display}\\");
+        let inner = input
+            .strip_prefix(&prefix)
+            .or_else(|| input.strip_prefix(&container_display))
+            .unwrap_or(input);
+        normalize_mount_path(inner)
     }
 
     /// Cached mounted filesystem root for an archive path.
@@ -102,45 +128,6 @@ impl Mounter {
             .expect("devices poisoned")
             .insert(key, mounted.clone());
         Ok(mounted)
-    }
-
-    /// List children at `relative` under the archive root (`""` = mount root).
-    ///
-    /// Root uses [`MountedDevice::list`]; nested paths walk [`DirEntry`] and call
-    /// [`DirEntry::list`].
-    pub(crate) fn list_at(path: &EPath, relative: &str) -> Result<Vec<FsEntry>, String> {
-        let relative = relative.trim_matches(|c| c == '/' || c == '\\');
-        if relative.is_empty() {
-            return Self::device(path)?.list();
-        }
-        Self::dir_entry_at(path, relative)?.list()
-    }
-
-    /// Resolve a nested directory entry under the archive root.
-    fn dir_entry_at(path: &EPath, relative: &str) -> Result<DirEntry, String> {
-        let parts: Vec<&str> = relative
-            .split(['/', '\\'])
-            .filter(|part| !part.is_empty())
-            .collect();
-        if parts.is_empty() {
-            return Err("empty-directory-path".to_string());
-        }
-
-        let mut entries = Self::device(path)?.list()?;
-        for (index, part) in parts.iter().enumerate() {
-            let dir = entries
-                .into_iter()
-                .find_map(|entry| match entry {
-                    FsEntry::Dir(dir) if dir.name == *part => Some(dir),
-                    _ => None,
-                })
-                .ok_or_else(|| "directory-not-found".to_string())?;
-            if index + 1 == parts.len() {
-                return Ok(dir);
-            }
-            entries = dir.list()?;
-        }
-        Err("directory-not-found".to_string())
     }
 
     /// Reconstruct a [`BlockDevice`] from a [`DeviceId`] (mountable devices only).
@@ -207,25 +194,6 @@ impl Mounter {
     pub fn is_mount(path: &EPath) -> bool {
         !path.root.is_host_disk()
     }
-
-    /// Resolve an internal path inside the same mount as `context`.
-    ///
-    /// Optionally strips the current container display prefix so pasting a full
-    /// `display()` string still works. Never changes root or backend.
-    pub(crate) fn from_internal_address(input: &str, context: &EPath) -> Option<EPath> {
-        let (container, _) = Self::mount_ref(context).ok()?;
-        let container_display = container.display();
-        let prefix = format!("{}\\", container_display);
-        let inner = input
-            .strip_prefix(&prefix)
-            .or_else(|| input.strip_prefix(&container_display))
-            .unwrap_or(input);
-        Some(Self::mount_path(
-            context.root.clone(),
-            normalize_mount_path(inner),
-            context.backend,
-        ))
-    }
 }
 
 fn normalize_mount_path(value: &str) -> PathBuf {
@@ -261,23 +229,8 @@ fn list_under_device(
         return root.list();
     }
 
-    let parts: Vec<&str> = relative
-        .split(['/', '\\'])
-        .filter(|part| !part.is_empty())
-        .collect();
-    let mut entries = root.list()?;
-    for (index, part) in parts.iter().enumerate() {
-        let dir = entries
-            .into_iter()
-            .find_map(|entry| match entry {
-                FsEntry::Dir(dir) if dir.name == *part => Some(dir),
-                _ => None,
-            })
-            .ok_or_else(|| "directory-not-found".to_string())?;
-        if index + 1 == parts.len() {
-            return dir.list();
-        }
-        entries = dir.list()?;
+    match entry_at(root.as_ref(), Path::new(relative))? {
+        FsEntry::Dir(dir) => dir.list(),
+        FsEntry::File(_) => Err("not-a-directory".to_string()),
     }
-    Err("directory-not-found".to_string())
 }

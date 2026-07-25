@@ -9,8 +9,10 @@ pub use message::{Action, Message};
 
 use std::path::PathBuf;
 
-use explorer_core::{navigation_parent, EPath, Mounter};
-use explorer_app::{ids, ExplorerModel, LanguageBundle, ModelError, NavigationHistory};
+use explorer_core::navigation_parent;
+use explorer_app::{
+    ids, AddressTarget, ExplorerModel, LanguageBundle, ModelError, NavigationHistory,
+};
 use iced::window as iced_window;
 use iced::widget::{container, row};
 use iced::{alignment, Element, Fill, Task};
@@ -156,46 +158,41 @@ impl Toolbar {
 
     fn submit_address(&mut self, model: &mut ExplorerModel) -> Option<Action> {
         self.address_editing = false;
-        let location = model.location();
-        let path = EPath::from_address(&self.address_input, &location);
 
-        if !path.exists() {
-            model.set_path_error(ModelError::InvalidPath);
-            return None;
-        }
-
-        if path.is_directory() {
-            self.reveal_path = None;
-            return model.navigate(path.navigation_path()).map(|dir| {
+        match model.resolve_address(&self.address_input) {
+            Ok(AddressTarget::Directory(dir)) => {
+                self.reveal_path = None;
+                let dir = model.navigate_dir(dir);
                 self.push_history(dir.path.clone());
-                Action::Load(dir)
-            });
-        }
-
-        if path.is_file() {
-            let nav = path.navigation_path();
-            let Some(parent_nav) = navigation_parent(&nav, Mounter::is_mount(&path)) else {
-                model.set_path_error(ModelError::InvalidPath);
-                return None;
-            };
-
-            if parent_nav == model.current_path() {
-                self.address_input = path.internal_display();
-                model.error = None;
-                model.select_path(path.path());
-                model.status = explorer_app::StatusInfo::ItemCount(model.entries.len());
-                return None;
+                Some(Action::Load(dir))
             }
+            Ok(AddressTarget::File { path }) => {
+                let Some(parent_nav) =
+                    navigation_parent(&path, model.is_mount())
+                else {
+                    model.set_path_error(ModelError::InvalidPath);
+                    return None;
+                };
 
-            self.reveal_path = Some(nav);
-            return model.navigate(parent_nav).map(|dir| {
-                self.push_history(dir.path.clone());
-                Action::Load(dir)
-            });
+                if parent_nav == model.current_path() {
+                    self.address_input = path.display().to_string();
+                    model.error = None;
+                    model.select_path(&path);
+                    model.status = explorer_app::StatusInfo::ItemCount(model.entries.len());
+                    return None;
+                }
+
+                self.reveal_path = Some(path);
+                model.navigate(parent_nav).map(|dir| {
+                    self.push_history(dir.path.clone());
+                    Action::Load(dir)
+                })
+            }
+            Err(error) => {
+                model.set_path_error(error);
+                None
+            }
         }
-
-        model.set_path_error(ModelError::InvalidPath);
-        None
     }
 }
 

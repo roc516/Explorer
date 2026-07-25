@@ -1,4 +1,3 @@
-mod access;
 mod mounter;
 mod epath;
 mod util;

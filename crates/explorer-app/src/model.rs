@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use explorer_core::filesystem::{
-    is_mountable, navigation_parent, BlockDevice, Mounter, EPath,
+    is_mountable, navigation_parent, BlockDevice, DeviceId, Mounter, EPath,
 };
-use explorer_core::DirEntry;
+use explorer_core::{DirEntry, FsEntry};
 
 use crate::entry::FileEntry;
 use crate::i18n::{ids, LanguageBundle};
@@ -32,6 +32,13 @@ pub enum OpenEntryAction {
     Preview(explorer_core::FsEntry),
     OpenArchive(BlockDevice),
     OpenedSystem { name: String },
+}
+
+/// Result of resolving an address-bar input in the current window.
+#[derive(Debug, Clone)]
+pub enum AddressTarget {
+    Directory(DirEntry),
+    File { path: PathBuf },
 }
 
 #[derive(Debug, Clone)]
@@ -96,20 +103,32 @@ impl ExplorerModel {
         &self.current_dir.path
     }
 
-    /// Rebuild a full [`EPath`] for address-bar / mount helpers.
-    pub fn location(&self) -> EPath {
-        match &self.mount {
-            Some(root) => root.with_navigation_path(self.current_dir.path.clone()),
-            None => EPath::local(self.current_dir.path.clone()),
-        }
+    pub fn mount_root(&self) -> Option<&EPath> {
+        self.mount.as_ref()
     }
 
     pub fn display_path(&self) -> String {
-        self.location().display()
+        match &self.mount {
+            Some(root) => {
+                let Ok((container, _)) = Mounter::mount_ref(root) else {
+                    return self.current_path().display().to_string();
+                };
+                if self.current_path().as_os_str().is_empty() {
+                    container.display()
+                } else {
+                    format!("{}\\{}", container.display(), self.current_path().display())
+                }
+            }
+            None => self.current_path().display().to_string(),
+        }
     }
 
     pub fn internal_display(&self) -> String {
-        self.location().internal_display()
+        if self.is_mount() {
+            self.current_path().display().to_string()
+        } else {
+            self.display_path()
+        }
     }
 
     pub fn is_mount(&self) -> bool {
@@ -148,24 +167,62 @@ impl ExplorerModel {
         self.status = StatusInfo::Loading;
     }
 
+    /// Parse address-bar input to an in-window navigation path.
+    pub fn parse_address(&self, input: &str) -> PathBuf {
+        let trimmed = input.trim();
+        if let Some(root) = &self.mount {
+            Mounter::parse_internal_path(trimmed, root)
+        } else {
+            let path = PathBuf::from(trimmed);
+            if path.is_absolute() {
+                path
+            } else {
+                self.current_path().join(path)
+            }
+        }
+    }
+
+    /// Resolve address-bar input to a directory handle or file path.
+    pub fn resolve_address(&self, input: &str) -> Result<AddressTarget, ModelError> {
+        let path = self.parse_address(input);
+        if let Some(root) = &self.mount {
+            if path.as_os_str().is_empty() {
+                return Mounter::dir_at(root, &path)
+                    .map(AddressTarget::Directory)
+                    .map_err(ModelError::External);
+            }
+            match Mounter::fs_entry_at(root, &path) {
+                Ok(FsEntry::Dir(dir)) => Ok(AddressTarget::Directory(dir)),
+                Ok(FsEntry::File(file)) => Ok(AddressTarget::File { path: file.path }),
+                Err(_) => Err(ModelError::InvalidPath),
+            }
+        } else if path.is_dir() {
+            DirEntry::open_host(path)
+                .map(AddressTarget::Directory)
+                .map_err(ModelError::External)
+        } else if path.is_file() {
+            Ok(AddressTarget::File { path })
+        } else {
+            Err(ModelError::InvalidPath)
+        }
+    }
+
     /// Resolve a navigation path to a [`DirEntry`] in this window.
     pub fn resolve_dir(&self, path: PathBuf) -> Result<DirEntry, ModelError> {
         if let Some(root) = &self.mount {
-            let target = root.with_navigation_path(path.clone());
-            if !target.exists() {
-                return Err(ModelError::InvalidPath);
+            if path.as_os_str().is_empty() {
+                return Mounter::dir_at(root, &path).map_err(ModelError::External);
             }
-            if !target.is_directory() {
-                return Err(ModelError::NotDirectory);
+            match Mounter::fs_entry_at(root, &path) {
+                Ok(FsEntry::Dir(dir)) => Ok(dir),
+                Ok(FsEntry::File(_)) => Err(ModelError::NotDirectory),
+                Err(_) => Err(ModelError::InvalidPath),
             }
-            Mounter::dir_at(root, &path).map_err(ModelError::External)
+        } else if !path.exists() {
+            Err(ModelError::InvalidPath)
+        } else if !path.is_dir() {
+            Err(ModelError::NotDirectory)
         } else {
-            if !path.exists() {
-                return Err(ModelError::InvalidPath);
-            }
-            if !path.is_dir() {
-                return Err(ModelError::NotDirectory);
-            }
             DirEntry::open_host(path).map_err(ModelError::External)
         }
     }
@@ -245,8 +302,17 @@ impl ExplorerModel {
     fn as_mountable(&self, entry: &FileEntry) -> Option<BlockDevice> {
         let file = entry.as_file()?;
         if let Some(root) = &self.mount {
-            root.with_navigation_path(file.path.clone())
-                .as_mountable_device()
+            let (container, _) = Mounter::mount_ref(root).ok()?;
+            let data = file.read().ok()?;
+            let device = BlockDevice::from_bytes(
+                DeviceId::Nested {
+                    parent: Box::new(container.clone()),
+                    entry: file.path.clone(),
+                },
+                file.name.clone(),
+                data,
+            );
+            is_mountable(&device).then_some(device)
         } else {
             let device = BlockDevice::open_host(file.path.clone()).ok()?;
             is_mountable(&device).then_some(device)

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 use crate::filesystem::backends::{host_backend, MountedDevice};
-use crate::filesystem::{file_name_of, mount_entry_name, Mounter, EPath};
+use crate::filesystem::file_name_of;
 
 /// Opaque file content source — obtained when the entry is listed / resolved.
 pub trait FileBytes: Send + Sync {
@@ -133,46 +133,6 @@ impl FileEntry {
             size,
             modified,
             content,
-        }
-    }
-
-    /// Resolve a file path to a [`FileEntry`] (lists the parent mount dir when needed).
-    pub fn resolve(path: &EPath) -> Result<Self, String> {
-        if path.is_directory() {
-            return Err("not-a-file".to_string());
-        }
-
-        if Mounter::is_mount(path) {
-            let full = mount_entry_name(path.path());
-            if full.is_empty() {
-                return Err("not-a-file".to_string());
-            }
-            let (parent, child) = match full.rsplit_once('/') {
-                Some((parent, child)) => (parent.to_string(), child.to_string()),
-                None => (String::new(), full),
-            };
-            let entries = Mounter::list_at(path, &parent)?;
-            for entry in entries {
-                if let FsEntry::File(file) = entry {
-                    if file.name == child {
-                        return Ok(file);
-                    }
-                }
-            }
-            Err("file-not-found".to_string())
-        } else {
-            let disk = path.disk_ref()?;
-            let metadata = std::fs::metadata(disk).map_err(|err| err.to_string())?;
-            if metadata.is_dir() {
-                return Err("not-a-file".to_string());
-            }
-            Ok(Self::new(
-                path.file_name(),
-                disk.to_path_buf(),
-                metadata.len(),
-                metadata.modified().ok(),
-                host_file_bytes(disk.to_path_buf()),
-            ))
         }
     }
 
