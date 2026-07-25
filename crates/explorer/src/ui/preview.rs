@@ -52,13 +52,23 @@ impl PreviewState {
         }
     }
 
-    pub fn set_loaded_file(&mut self, file: PreviewFile) {
+    pub fn set_loaded_file(&mut self, file: PreviewFile) -> Task<preview::Message> {
         self.error = None;
         self.text = text::Text::for_file(&file);
         self.image = image::Image::for_file(&file);
         self.document = document::Document::for_file(&file);
-        self.hex = hex::Hex::for_file(&file);
+        let hex_task = match hex::Hex::for_file(&file) {
+            Some((hex, task)) => {
+                self.hex = Some(hex);
+                task
+            }
+            None => {
+                self.hex = None;
+                Task::none()
+            }
+        };
         self.file = Some(file);
+        hex_task
     }
 }
 

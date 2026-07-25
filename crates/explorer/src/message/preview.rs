@@ -15,4 +15,9 @@ pub enum Message {
     ImageWheelZoom(f32),
     HexScrolled(f32),
     HexSelect(usize),
+    HexWindowLoaded {
+        id: u64,
+        start: usize,
+        result: Result<Vec<u8>, String>,
+    },
 }

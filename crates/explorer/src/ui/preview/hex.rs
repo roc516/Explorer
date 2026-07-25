@@ -6,7 +6,7 @@ mod status_bar;
 use explorer_app::{ids, HexPreview, LanguageBundle, PreviewFile, PreviewKind};
 use iced::widget::{column, scrollable, Space};
 use iced::widget::scrollable::Direction;
-use iced::{Element, Fill, Length};
+use iced::{Element, Fill, Length, Task};
 
 use crate::fluent::{
     HEIGHT_PREVIEW_BODY, HEIGHT_PREVIEW_STATUS_BAR, SPACE_LG, SPACE_XS,
@@ -24,34 +24,157 @@ pub(crate) const ASCII_WIDTH: f32 = 140.0;
 pub(crate) const BYTE_WIDTH: f32 = 24.0;
 pub(crate) const FONT_SIZE: f32 = 12.0;
 const OVERSCAN_LINES: usize = 4;
+/// Extra lines kept beyond the visible range so small scrolls reuse the cache.
+const WINDOW_MARGIN_LINES: usize = 16;
+
+#[derive(Debug, Clone)]
+struct ByteWindow {
+    start: usize,
+    data: Vec<u8>,
+}
+
+impl ByteWindow {
+    fn end(&self) -> usize {
+        self.start + self.data.len()
+    }
+
+    fn covers(&self, start: usize, end: usize) -> bool {
+        start >= self.start && end <= self.end()
+    }
+
+    fn slice(&self, offset: usize, len: usize) -> Option<&[u8]> {
+        let rel = offset.checked_sub(self.start)?;
+        if rel >= self.data.len() {
+            return Some(&[]);
+        }
+        let end = (rel + len).min(self.data.len());
+        Some(&self.data[rel..end])
+    }
+
+    fn get(&self, offset: usize) -> Option<u8> {
+        offset
+            .checked_sub(self.start)
+            .and_then(|rel| self.data.get(rel).copied())
+    }
+}
+
+#[derive(Debug, Clone)]
+struct PendingWindow {
+    start: usize,
+    end: usize,
+}
+
+impl PendingWindow {
+    fn covers(&self, start: usize, end: usize) -> bool {
+        start >= self.start && end <= self.end
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Hex {
     pub scroll_y: f32,
     pub selected: Option<usize>,
+    window: Option<ByteWindow>,
+    pending: Option<PendingWindow>,
+    load_id: u64,
+    load_error: Option<String>,
 }
 
 impl Hex {
-    pub fn for_file(file: &PreviewFile) -> Option<Self> {
-        if !matches!(file.kind, PreviewKind::Hex(_)) {
+    pub fn for_file(file: &PreviewFile) -> Option<(Self, Task<preview::Message>)> {
+        let PreviewKind::Hex(preview) = &file.kind else {
             return None;
-        }
-        Some(Self::new())
+        };
+        let mut state = Self::new();
+        let task = state.request_window(preview);
+        Some((state, task))
     }
 
     pub fn new() -> Self {
         Self {
             scroll_y: 0.0,
             selected: None,
+            window: None,
+            pending: None,
+            load_id: 0,
+            load_error: None,
         }
     }
 
-    pub fn on_scroll(&mut self, y: f32) {
+    pub fn on_scroll(&mut self, preview: &HexPreview, y: f32) -> Task<preview::Message> {
         self.scroll_y = y;
+        self.request_window(preview)
     }
 
     pub fn select(&mut self, index: usize) {
         self.selected = Some(index);
+    }
+
+    pub fn apply_window(
+        &mut self,
+        id: u64,
+        start: usize,
+        result: Result<Vec<u8>, String>,
+    ) {
+        if id != self.load_id {
+            return;
+        }
+        self.pending = None;
+        match result {
+            Ok(data) => {
+                self.window = Some(ByteWindow { start, data });
+                self.load_error = None;
+            }
+            Err(message) => {
+                self.load_error = Some(message);
+            }
+        }
+    }
+
+    fn request_window(&mut self, preview: &HexPreview) -> Task<preview::Message> {
+        if preview.size == 0 {
+            self.window = Some(ByteWindow {
+                start: 0,
+                data: Vec::new(),
+            });
+            self.pending = None;
+            self.load_error = None;
+            return Task::none();
+        }
+
+        let line_count = preview.size.div_ceil(BYTES_PER_LINE as u64) as usize;
+        let (first, last) = visible_line_range(self.scroll_y, line_count);
+        let need_start = first * BYTES_PER_LINE;
+        let need_end = (last * BYTES_PER_LINE).min(preview.size as usize);
+
+        if let Some(window) = &self.window {
+            if window.covers(need_start, need_end) {
+                return Task::none();
+            }
+        }
+
+        if let Some(pending) = &self.pending {
+            if pending.covers(need_start, need_end) {
+                return Task::none();
+            }
+        }
+
+        let load_first = first.saturating_sub(WINDOW_MARGIN_LINES);
+        let load_last = (last + WINDOW_MARGIN_LINES).min(line_count);
+        let start = load_first * BYTES_PER_LINE;
+        let end = (load_last * BYTES_PER_LINE).min(preview.size as usize);
+        let len = end.saturating_sub(start);
+
+        self.load_id = self.load_id.wrapping_add(1);
+        let id = self.load_id;
+        self.pending = Some(PendingWindow { start, end });
+        self.load_error = None;
+
+        let preview = preview.clone();
+        Task::perform(
+            async move { (id, start, preview.read_range(start as u64, len)) },
+            |(id, start, result)| preview::Message::HexWindowLoaded { id, start, result },
+        )
     }
 }
 
@@ -66,11 +189,19 @@ pub fn view(
     preview: &HexPreview,
     state: &Hex,
 ) -> Element<'static, preview::Message> {
-    if preview.bytes.is_empty() {
+    if preview.size == 0 {
         return preview_message(bundle.tr(ids::PREVIEW_HEX_EMPTY), false);
     }
 
-    let line_count = preview.bytes.len().div_ceil(BYTES_PER_LINE);
+    if let Some(error) = &state.load_error {
+        return preview_message(error.clone(), true);
+    }
+
+    let Some(window) = &state.window else {
+        return preview_message(bundle.tr(ids::PREVIEW_LOADING), false);
+    };
+
+    let line_count = preview.size.div_ceil(BYTES_PER_LINE as u64) as usize;
     let (first, last) = visible_line_range(state.scroll_y, line_count);
 
     let mut lines: Vec<Element<'static, preview::Message>> = Vec::with_capacity(last - first + 2);
@@ -83,7 +214,12 @@ pub fn view(
     }
 
     for row in first..last {
-        lines.push(line::view(preview, row * BYTES_PER_LINE, state.selected));
+        let offset = row * BYTES_PER_LINE;
+        let chunk = window
+            .slice(offset, BYTES_PER_LINE)
+            .unwrap_or(&[])
+            .to_vec();
+        lines.push(line::view(offset, &chunk, preview.size as usize, state.selected));
     }
 
     let trailing = line_count.saturating_sub(last);
@@ -117,6 +253,11 @@ pub(crate) fn ascii_char(byte: u8) -> char {
         b' '..=b'~' => byte as char,
         _ => '.',
     }
+}
+
+pub(crate) fn selected_byte(state: &Hex) -> Option<u8> {
+    let index = state.selected?;
+    state.window.as_ref()?.get(index)
 }
 
 fn body_viewport_height() -> f32 {

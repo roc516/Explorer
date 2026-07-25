@@ -1,4 +1,3 @@
-use explorer_app::HexPreview;
 use iced::widget::{container, mouse_area, row, text, Space};
 use iced::{alignment, Element, Fill, Font, Length, Theme};
 
@@ -12,22 +11,24 @@ use super::{
 };
 
 pub fn view(
-    preview: &HexPreview,
     offset: usize,
+    chunk: &[u8],
+    file_size: usize,
     selected: Option<usize>,
 ) -> Element<'static, preview::Message> {
-    let end = (offset + BYTES_PER_LINE).min(preview.bytes.len());
-    let chunk = &preview.bytes[offset..end];
-
     let mut hex_cells: Vec<Element<'static, preview::Message>> =
         Vec::with_capacity(BYTES_PER_LINE + 1);
     for i in 0..BYTES_PER_LINE {
         if i == 8 {
             hex_cells.push(Space::new().width(Length::Fixed(SPACE_SM)).into());
         }
-        if let Some(value) = chunk.get(i).copied() {
-            let index = offset + i;
-            hex_cells.push(byte::view(index, value, selected == Some(index)));
+        let index = offset + i;
+        if index < file_size {
+            if let Some(value) = chunk.get(i).copied() {
+                hex_cells.push(byte::view(index, value, selected == Some(index)));
+            } else {
+                hex_cells.push(byte::placeholder());
+            }
         } else {
             hex_cells.push(byte::placeholder());
         }

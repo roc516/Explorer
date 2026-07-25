@@ -8,11 +8,11 @@ use crate::fluent::{
 use crate::message::preview;
 use crate::ui::preview::{preview_status_bar, status_muted_text};
 
-use super::{ascii_char, Hex};
+use super::{ascii_char, selected_byte, Hex};
 
 pub fn view(
     bundle: LanguageBundle,
-    preview: &HexPreview,
+    _preview: &HexPreview,
     state: &Hex,
     file: &PreviewFile,
 ) -> Element<'static, preview::Message> {
@@ -24,7 +24,7 @@ pub fn view(
     ];
 
     if let Some(index) = state.selected {
-        if let Some(byte) = preview.bytes.get(index).copied() {
+        if let Some(byte) = selected_byte(state) {
             let ascii = match byte {
                 b' '..=b'~' => format!("'{}'", ascii_char(byte)),
                 _ => ".".to_string(),

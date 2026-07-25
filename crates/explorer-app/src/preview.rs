@@ -66,7 +66,7 @@ pub fn load_preview(entry: &FsEntry) -> Result<PreviewFile, String> {
         Some(ext) if pdf_preview::is_extension(ext) => {
             PreviewKind::Pdf(pdf_preview::load(&mut *file.open()?, size)?)
         }
-        _ => PreviewKind::Hex(hex_preview::load(&mut *file.open()?, size)?),
+        _ => PreviewKind::Hex(hex_preview::load(file)),
     };
 
     Ok(PreviewFile { name, size, kind })

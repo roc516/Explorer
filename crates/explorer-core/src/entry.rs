@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::io::{Read, Seek};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -6,10 +6,15 @@ use std::time::SystemTime;
 use crate::filesystem::backends::{host_backend, MountedDevice};
 use crate::filesystem::file_name_of;
 
+/// Reader that supports both sequential reads and seeking.
+pub trait SeekRead: Read + Seek + Send {}
+
+impl<T: Read + Seek + Send> SeekRead for T {}
+
 /// Opaque file content source — obtained when the entry is listed / resolved.
 pub trait FileBytes: Send + Sync {
-    /// Open a streaming reader for this file's content.
-    fn open(&self) -> Result<Box<dyn Read + Send>, String>;
+    /// Open a seekable reader for this file's content.
+    fn open(&self) -> Result<Box<dyn SeekRead>, String>;
 }
 
 /// Lists immediate children of a directory entry (not a mount root).
@@ -138,8 +143,8 @@ impl FileEntry {
         }
     }
 
-    /// Open a streaming reader for this file's content.
-    pub fn open(&self) -> Result<Box<dyn Read + Send>, String> {
+    /// Open a seekable reader for this file's content.
+    pub fn open(&self) -> Result<Box<dyn SeekRead>, String> {
         self.content.open()
     }
 }
@@ -155,9 +160,9 @@ struct HostFileBytes {
 }
 
 impl FileBytes for HostFileBytes {
-    fn open(&self) -> Result<Box<dyn Read + Send>, String> {
+    fn open(&self) -> Result<Box<dyn SeekRead>, String> {
         std::fs::File::open(&self.path)
-            .map(|file| Box::new(file) as Box<dyn Read + Send>)
+            .map(|file| Box::new(file) as Box<dyn SeekRead>)
             .map_err(|err| err.to_string())
     }
 }

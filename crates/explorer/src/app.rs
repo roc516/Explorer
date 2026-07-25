@@ -402,7 +402,7 @@ impl Explorer {
             }
             preview::Message::Loaded(result) => {
                 let bundle = self.model.bundle.clone();
-                if let Some(state) = &mut self.preview_state {
+                let task = if let Some(state) = &mut self.preview_state {
                     state.loading = false;
                     match result {
                         Ok(file) => state.set_loaded_file(file),
@@ -416,9 +416,13 @@ impl Explorer {
                                 "preview-pdf-failed" => bundle.tr(ids::PREVIEW_PDF_FAILED),
                                 _ => bundle.tr(ids::PREVIEW_LOAD_FAILED),
                             });
+                            Task::none()
                         }
                     }
-                }
+                } else {
+                    Task::none()
+                };
+                return task.map(window_msg::Message::Preview);
             }
             preview::Message::OpenExternal => {
                 if let Some(source) = self.preview_state.as_ref().map(|state| state.source.clone()) {
@@ -485,16 +489,33 @@ impl Explorer {
                 }
             }
             preview::Message::HexScrolled(y) => {
-                if let Some(state) = &mut self.preview_state {
-                    if let Some(hex) = &mut state.hex {
-                        hex.on_scroll(y);
+                let task = if let Some(state) = &mut self.preview_state {
+                    if let (Some(hex), Some(file)) = (&mut state.hex, state.file.as_ref()) {
+                        if let explorer_app::PreviewKind::Hex(preview) = &file.kind {
+                            let preview = preview.clone();
+                            hex.on_scroll(&preview, y)
+                        } else {
+                            Task::none()
+                        }
+                    } else {
+                        Task::none()
                     }
-                }
+                } else {
+                    Task::none()
+                };
+                return task.map(window_msg::Message::Preview);
             }
             preview::Message::HexSelect(index) => {
                 if let Some(state) = &mut self.preview_state {
                     if let Some(hex) = &mut state.hex {
                         hex.select(index);
+                    }
+                }
+            }
+            preview::Message::HexWindowLoaded { id, start, result } => {
+                if let Some(state) = &mut self.preview_state {
+                    if let Some(hex) = &mut state.hex {
+                        hex.apply_window(id, start, result);
                     }
                 }
             }
