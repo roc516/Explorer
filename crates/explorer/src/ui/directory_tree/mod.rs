@@ -1,3 +1,5 @@
+mod icons;
+
 use explorer_core::{BlockDevice, EPath};
 use explorer_app::{load_tree_children, DirectoryTree as DirectoryTreeState, TreeNode, TreeRow};
 use iced::widget::{button, column, container, mouse_area, row, scrollable, text, Space};
@@ -7,7 +9,6 @@ use crate::fluent::{
     HEIGHT_LIST_ROW, NAV_PANE_WIDTH, PAGE_PADDING_H, RADIUS_CONTROL, SPACE_LG,
     SPACE_SM, SPACE_XS,
 };
-use crate::ui::tree_icons;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -113,8 +114,8 @@ fn load_children_task(path: EPath) -> Task<Message> {
 
 fn view_row(row: TreeRow) -> Element<'static, Message> {
     let chevron = chevron_widget(&row);
-    let folder = tree_icons::folder::<Message>(
-        tree_icons::folder_kind(&row),
+    let folder = icons::folder::<Message>(
+        icons::folder_kind(&row),
         ICON_WIDTH,
         HEIGHT_LIST_ROW,
     );
@@ -157,7 +158,7 @@ fn chevron_widget(row: &TreeRow) -> Element<'static, Message> {
     }
 
     button(
-        tree_icons::chevron::<Message>(
+        icons::chevron::<Message>(
             row.expanded,
             row.loading,
             CHEVRON_WIDTH,

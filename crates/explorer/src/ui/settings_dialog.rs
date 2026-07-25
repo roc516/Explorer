@@ -10,8 +10,8 @@ use crate::fluent::{
 };
 use crate::message::{settings, theme, Message as AppMessage};
 use crate::theme::{theme_options, AppTheme};
-use crate::ui::lucide_icon;
 use crate::ui::style::{dialog_container, dialog_divider, icon_button, pick_list_style};
+use crate::widget::LucideIcon;
 
 pub mod locale {
         use explorer_app::Language;
@@ -133,7 +133,7 @@ fn header(title: String) -> Element<'static, AppMessage> {
         text(title).size(14),
         Space::new().width(Fill),
         button(
-            container(lucide_icon::icon_muted::<AppMessage>(Icon::X, CLOSE_ICON_SIZE, 0.72))
+            container(LucideIcon::new(Icon::X).size(CLOSE_ICON_SIZE).muted(0.72))
                 .width(Length::Fixed(CLOSE_BUTTON_SIZE))
                 .height(Length::Fixed(CLOSE_BUTTON_SIZE))
                 .align_x(alignment::Horizontal::Center)
@@ -160,7 +160,7 @@ fn setting_row(
 ) -> Element<'_, AppMessage> {
     row![
         row![
-            lucide_icon::icon_muted::<AppMessage>(icon, 14.0, 0.72),
+            LucideIcon::new(icon).size(14.0).muted(0.72),
             text(label).size(13),
         ]
         .spacing(SPACE_SM)

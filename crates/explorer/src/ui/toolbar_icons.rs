@@ -3,7 +3,7 @@ use iced::{alignment, Element, Length, Theme};
 use lucide_icons::Icon;
 
 use crate::fluent::NAV_BUTTON_SIZE;
-use crate::ui::lucide_icon;
+use crate::widget::LucideIcon;
 
 const NAV_ICON_SIZE: f32 = 16.0;
 
@@ -77,7 +77,11 @@ pub fn nav_button<'a, Message: 'a + Clone>(
     on_press: Option<Message>,
 ) -> Element<'a, Message> {
     let alpha = if enabled { 0.88 } else { 0.35 };
-    let icon = container(lucide_icon::icon_muted::<Message>(kind.lucide(), NAV_ICON_SIZE, alpha))
+    let icon = container(
+        LucideIcon::new(kind.lucide())
+            .size(NAV_ICON_SIZE)
+            .muted(alpha),
+    )
         .width(Length::Fixed(NAV_ICON_SIZE))
         .height(Length::Fixed(NAV_ICON_SIZE))
         .align_x(alignment::Horizontal::Center)

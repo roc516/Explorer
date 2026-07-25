@@ -2,7 +2,7 @@ use iced::widget::container;
 use iced::{alignment, Element, Length};
 use lucide_icons::Icon;
 
-use crate::ui::lucide_icon;
+use crate::widget::LucideIcon;
 
 const ICON_SIZE: f32 = 16.0;
 
@@ -49,7 +49,7 @@ fn centered_icon<'a, Message: 'a>(
     width: f32,
     height: f32,
 ) -> Element<'a, Message> {
-    container(lucide_icon::icon_muted::<Message>(icon, ICON_SIZE, 0.72))
+    container(LucideIcon::new(icon).size(ICON_SIZE).muted(0.72))
         .width(Length::Fixed(width))
         .height(Length::Fixed(height))
         .align_x(alignment::Horizontal::Center)

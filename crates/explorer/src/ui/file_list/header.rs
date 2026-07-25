@@ -5,7 +5,7 @@ use lucide_icons::Icon;
 use crate::fluent::{
     FONT_SIZE_CAPTION, HEIGHT_LIST_ROW, PAGE_PADDING_H, RADIUS_CONTROL, SPACE_XS,
 };
-use crate::ui::lucide_icon;
+use crate::widget::LucideIcon;
 
 use super::columns::{Column, ColumnWidths, COL_ICON};
 use super::message::Message;
@@ -143,7 +143,7 @@ fn sort_indicator(direction: SortDirection) -> Element<'static, Message> {
         SortDirection::Ascending => Icon::ArrowUp,
         SortDirection::Descending => Icon::ArrowDown,
     };
-    lucide_icon::icon_muted::<Message>(icon, HEADER_SORT_ICON, 0.72).into()
+    LucideIcon::new(icon).size(HEADER_SORT_ICON).muted(0.72).into()
 }
 
 fn list_header_bar(theme: &Theme) -> iced::widget::container::Style {

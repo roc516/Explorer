@@ -17,9 +17,8 @@ use crate::fluent::{
     DIALOG_WIDTH_PREVIEW, HEIGHT_PREVIEW_BODY, HEIGHT_PREVIEW_STATUS_BAR, SPACE_LG, SPACE_MD, SPACE_SM,
 };
 use crate::message::preview;
-use crate::ui::lucide_icon;
 use crate::ui::style::{dialog_container, dialog_divider, error_text, icon_button, secondary_button};
-use crate::widget::wheel_blocker::WheelBlocker;
+use crate::widget::{LucideIcon, wheel_blocker::WheelBlocker};
 
 #[derive(Debug, Clone)]
 pub struct PreviewState {
@@ -200,7 +199,7 @@ fn dialog_header(
         Space::new().width(Fill),
         open_button,
         button(
-            container(lucide_icon::icon_muted::<preview::Message>(Icon::X, CLOSE_ICON_SIZE, 0.72))
+            container(LucideIcon::new(Icon::X).size(CLOSE_ICON_SIZE).muted(0.72))
                 .width(Length::Fixed(CLOSE_BUTTON_SIZE))
                 .height(Length::Fixed(CLOSE_BUTTON_SIZE))
                 .align_x(alignment::Horizontal::Center)

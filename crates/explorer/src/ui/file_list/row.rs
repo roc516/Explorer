@@ -4,7 +4,7 @@ use iced::{alignment, Element, Fill, Length, Theme};
 use lucide_icons::Icon;
 
 use crate::fluent::{RADIUS_CONTROL, SPACE_XS};
-use crate::ui::lucide_icon;
+use crate::widget::LucideIcon;
 
 use super::cell::{clipped_cell, column_gap};
 use super::columns::{ColumnWidths, COL_ICON};
@@ -22,14 +22,11 @@ pub(crate) fn file_row<'a>(
     let size = entry.size_label(bundle);
 
     let content = row![
-        container(lucide_icon::icon::<Message>(
-            if entry.is_dir {
-                Icon::Folder
-            } else {
-                Icon::File
-            },
-            16.0,
-        ))
+        container(LucideIcon::new(if entry.is_dir {
+            Icon::Folder
+        } else {
+            Icon::File
+        }))
         .width(Length::Fixed(COL_ICON))
         .align_x(alignment::Horizontal::Center)
         .align_y(alignment::Vertical::Center),

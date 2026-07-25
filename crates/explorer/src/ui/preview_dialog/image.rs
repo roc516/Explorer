@@ -10,8 +10,8 @@ use crate::fluent::{
     PAGE_PADDING_H, SPACE_LG, SPACE_MD, SPACE_SM, SPACE_XS,
 };
 use crate::message::preview;
-use crate::ui::lucide_icon;
 use crate::ui::style::{icon_button, secondary_button};
+use crate::widget::LucideIcon;
 
 use super::{preview_status_bar, status_muted_text};
 
@@ -210,7 +210,7 @@ fn scroll_delta_to_zoom_factor(delta: mouse::ScrollDelta) -> f32 {
 
 fn zoom_button(icon: Icon, message: preview::Message) -> Element<'static, preview::Message> {
     button(
-        container(lucide_icon::icon_muted::<preview::Message>(icon, ZOOM_ICON_SIZE, 0.72))
+        container(LucideIcon::new(icon).size(ZOOM_ICON_SIZE).muted(0.72))
             .width(Length::Fixed(ZOOM_BUTTON_SIZE))
             .height(Length::Fixed(ZOOM_BUTTON_SIZE))
             .align_x(alignment::Horizontal::Center)
