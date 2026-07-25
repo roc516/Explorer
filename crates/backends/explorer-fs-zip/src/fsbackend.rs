@@ -60,19 +60,64 @@ struct ZipFileBytes {
 }
 
 impl FileBytes for ZipFileBytes {
-    fn read(&self) -> Result<Vec<u8>, String> {
-        let mut archive = self
-            .archive
-            .lock()
-            .map_err(|_| "archive-lock-poisoned".to_string())?;
-        let mut entry = archive
-            .by_index(self.index)
+    fn open(&self) -> Result<Box<dyn Read + Send>, String> {
+        let archive = self.archive.clone();
+        let index = self.index;
+        let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<u8>>(2);
+        std::thread::Builder::new()
+            .name("zip-entry-read".into())
+            .spawn(move || {
+                let Ok(mut archive) = archive.lock() else {
+                    return;
+                };
+                let Ok(mut entry) = archive.by_index(index) else {
+                    return;
+                };
+                let mut buf = vec![0u8; 64 * 1024];
+                loop {
+                    match entry.read(&mut buf) {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            if tx.send(buf[..n].to_vec()).is_err() {
+                                break;
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+            })
             .map_err(|err| err.to_string())?;
-        let mut bytes = Vec::new();
-        entry
-            .read_to_end(&mut bytes)
-            .map_err(|err| err.to_string())?;
-        Ok(bytes)
+        Ok(Box::new(ChunkReader {
+            rx,
+            current: Vec::new(),
+            offset: 0,
+        }))
+    }
+}
+
+/// Forwards chunks from a background zip decompress thread.
+struct ChunkReader {
+    rx: std::sync::mpsc::Receiver<Vec<u8>>,
+    current: Vec<u8>,
+    offset: usize,
+}
+
+impl Read for ChunkReader {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        while self.offset >= self.current.len() {
+            match self.rx.recv() {
+                Ok(chunk) => {
+                    self.current = chunk;
+                    self.offset = 0;
+                }
+                Err(_) => return Ok(0),
+            }
+        }
+        let available = self.current.len() - self.offset;
+        let n = available.min(buf.len());
+        buf[..n].copy_from_slice(&self.current[self.offset..self.offset + n]);
+        self.offset += n;
+        Ok(n)
     }
 }
 

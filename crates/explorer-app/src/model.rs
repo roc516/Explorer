@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use explorer_core::filesystem::{
@@ -301,7 +302,9 @@ impl ExplorerModel {
     fn as_mountable(&self, entry: &FileEntry) -> Option<BlockDevice> {
         let file = entry.as_file()?;
         if let Some(mount) = &self.mount {
-            let data = file.read().ok()?;
+            let mut reader = file.open().ok()?;
+            let mut data = Vec::new();
+            reader.read_to_end(&mut data).ok()?;
             let device = BlockDevice::from_bytes(
                 DeviceId::Nested {
                     parent: Box::new(mount.id.clone()),

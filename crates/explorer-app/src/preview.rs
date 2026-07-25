@@ -5,7 +5,6 @@ mod ppt_preview;
 mod text_preview;
 mod word_preview;
 
-use std::io::{Cursor, Read};
 use std::path::Path;
 
 use explorer_core::FsEntry;
@@ -34,15 +33,41 @@ pub struct PreviewFile {
 }
 
 /// Load preview content from a listed [`FsEntry`] (no path re-resolve).
+///
+/// Opens a streaming reader and lets each previewer enforce its own byte limit
+/// via [`io::copy_limited`] — the whole file is not buffered up front.
 pub fn load_preview(entry: &FsEntry) -> Result<PreviewFile, String> {
     let FsEntry::File(file) = entry else {
         return Err("preview-not-file".to_string());
     };
     let name = file.name.clone();
+    if name.is_empty() {
+        return Err("preview-not-file".to_string());
+    }
+
     let extension = extension_of(&name);
-    let bytes = file.read()?;
-    let size = bytes.len() as u64;
-    read_preview_file(&name, extension, &mut Cursor::new(bytes), size)
+    let size = file.size;
+
+    let kind = match extension.as_deref() {
+        Some(ext) if text_preview::is_extension(ext) => {
+            PreviewKind::Text(text_preview::load(&mut *file.open()?, size)?)
+        }
+        Some(ext) if image_preview::is_extension(ext) => {
+            PreviewKind::Image(image_preview::load(&mut *file.open()?, size)?)
+        }
+        Some(ext) if word_preview::is_extension(ext) => {
+            PreviewKind::Word(word_preview::load(&mut *file.open()?, size, ext)?)
+        }
+        Some(ext) if ppt_preview::is_extension(ext) => {
+            PreviewKind::Ppt(ppt_preview::load(&mut *file.open()?, size, ext)?)
+        }
+        Some(ext) if pdf_preview::is_extension(ext) => {
+            PreviewKind::Pdf(pdf_preview::load(&mut *file.open()?, size)?)
+        }
+        _ => PreviewKind::Unsupported { extension },
+    };
+
+    Ok(PreviewFile { name, size, kind })
 }
 
 /// Open the file with the system default app.
@@ -65,47 +90,14 @@ pub fn open_with_system(entry: &FsEntry) -> Result<(), String> {
             file.name.clone()
         };
         let output = temp_dir.join(file_name);
-        std::fs::write(&output, file.read()?).map_err(|err| err.to_string())?;
+        let mut reader = file.open()?;
+        let mut output_file =
+            std::fs::File::create(&output).map_err(|err| err.to_string())?;
+        std::io::copy(&mut reader, &mut output_file).map_err(|err| err.to_string())?;
         output
     };
 
     open::that(&path).map_err(|err| err.to_string())
-}
-
-fn read_preview_file(
-    name: &str,
-    extension: Option<String>,
-    reader: &mut dyn Read,
-    size: u64,
-) -> Result<PreviewFile, String> {
-    if name.is_empty() {
-        return Err("preview-not-file".to_string());
-    }
-
-    let kind = match extension.as_deref() {
-        Some(ext) if text_preview::is_extension(ext) => {
-            PreviewKind::Text(text_preview::load(reader, size)?)
-        }
-        Some(ext) if image_preview::is_extension(ext) => {
-            PreviewKind::Image(image_preview::load(reader, size)?)
-        }
-        Some(ext) if word_preview::is_extension(ext) => {
-            PreviewKind::Word(word_preview::load(reader, size, ext)?)
-        }
-        Some(ext) if ppt_preview::is_extension(ext) => {
-            PreviewKind::Ppt(ppt_preview::load(reader, size, ext)?)
-        }
-        Some(ext) if pdf_preview::is_extension(ext) => {
-            PreviewKind::Pdf(pdf_preview::load(reader, size)?)
-        }
-        _ => PreviewKind::Unsupported { extension },
-    };
-
-    Ok(PreviewFile {
-        name: name.to_string(),
-        size,
-        kind,
-    })
 }
 
 pub fn is_previewable_extension(ext: &str) -> bool {

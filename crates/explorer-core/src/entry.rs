@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -7,7 +8,8 @@ use crate::filesystem::file_name_of;
 
 /// Opaque file content source — obtained when the entry is listed / resolved.
 pub trait FileBytes: Send + Sync {
-    fn read(&self) -> Result<Vec<u8>, String>;
+    /// Open a streaming reader for this file's content.
+    fn open(&self) -> Result<Box<dyn Read + Send>, String>;
 }
 
 /// Lists immediate children of a directory entry (not a mount root).
@@ -136,9 +138,9 @@ impl FileEntry {
         }
     }
 
-    /// Read this file's bytes through its content handle.
-    pub fn read(&self) -> Result<Vec<u8>, String> {
-        self.content.read()
+    /// Open a streaming reader for this file's content.
+    pub fn open(&self) -> Result<Box<dyn Read + Send>, String> {
+        self.content.open()
     }
 }
 
@@ -153,8 +155,10 @@ struct HostFileBytes {
 }
 
 impl FileBytes for HostFileBytes {
-    fn read(&self) -> Result<Vec<u8>, String> {
-        std::fs::read(&self.path).map_err(|err| err.to_string())
+    fn open(&self) -> Result<Box<dyn Read + Send>, String> {
+        std::fs::File::open(&self.path)
+            .map(|file| Box::new(file) as Box<dyn Read + Send>)
+            .map_err(|err| err.to_string())
     }
 }
 
