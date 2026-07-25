@@ -1,14 +1,9 @@
 use crate::entry::FsEntry;
 
-/// A mounted filesystem — directory listing only.
+/// A mounted filesystem root — lists only its immediate children.
 ///
-/// To read file data, obtain a [`crate::entry::FileEntry`] from [`list`](Self::list)
-/// (or [`FileEntry::resolve`](crate::entry::FileEntry::resolve)) and call
-/// [`FileEntry::read`](crate::entry::FileEntry::read).
+/// Nested directories are listed via [`crate::entry::DirEntry::list`], not this trait.
 pub trait MountedDevice: Send + Sync {
-    /// List immediate children of the directory named `name`.
-    ///
-    /// `name` is relative to the mount root (e.g. `""`, `"folder"`, `"a/b"`).
-    /// It is not a host filesystem path.
-    fn list(&self, name: &str) -> Result<Vec<FsEntry>, String>;
+    /// List immediate children of the mount root.
+    fn list(&self) -> Result<Vec<FsEntry>, String>;
 }

@@ -9,10 +9,49 @@ pub trait FileBytes: Send + Sync {
     fn read(&self) -> Result<Vec<u8>, String>;
 }
 
-#[derive(Debug, Clone)]
+/// Lists immediate children of a directory entry (not a mount root).
+pub trait Directory: Send + Sync {
+    fn list(&self) -> Result<Vec<FsEntry>, String>;
+}
+
 pub struct DirEntry {
     pub name: String,
     pub path: PathBuf,
+    directory: Arc<dyn Directory>,
+}
+
+impl std::fmt::Debug for DirEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DirEntry")
+            .field("name", &self.name)
+            .field("path", &self.path)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Clone for DirEntry {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            path: self.path.clone(),
+            directory: self.directory.clone(),
+        }
+    }
+}
+
+impl DirEntry {
+    pub fn new(name: String, path: PathBuf, directory: Arc<dyn Directory>) -> Self {
+        Self {
+            name,
+            path,
+            directory,
+        }
+    }
+
+    /// List immediate children of this directory.
+    pub fn list(&self) -> Result<Vec<FsEntry>, String> {
+        self.directory.list()
+    }
 }
 
 #[derive(Clone)]
@@ -67,7 +106,7 @@ impl FileEntry {
                 Some((parent, child)) => (parent.to_string(), child.to_string()),
                 None => (String::new(), full),
             };
-            let entries = Mounter::device(path)?.list(&parent)?;
+            let entries = Mounter::list_at(path, &parent)?;
             for entry in entries {
                 if let FsEntry::File(file) = entry {
                     if file.name == child {

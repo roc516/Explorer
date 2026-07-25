@@ -1,9 +1,12 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use explorer_core::{host_file_bytes, DirEntry, FileEntry, FsEntry};
 
-pub fn read_directory(dir: &Path) -> Result<Vec<FsEntry>, String> {
+pub fn read_directory(
+    dir: &Path,
+    make_dir: impl Fn(String, PathBuf) -> DirEntry,
+) -> Result<Vec<FsEntry>, String> {
     let entries = fs::read_dir(dir).map_err(|err| err.to_string())?;
 
     let mut items = Vec::new();
@@ -15,10 +18,7 @@ pub fn read_directory(dir: &Path) -> Result<Vec<FsEntry>, String> {
         let disk = entry.path();
 
         if file_type.is_dir() {
-            items.push(FsEntry::Dir(DirEntry {
-                name,
-                path: disk,
-            }));
+            items.push(FsEntry::Dir(make_dir(name, disk)));
         } else {
             items.push(FsEntry::File(FileEntry::new(
                 name,

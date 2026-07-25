@@ -150,7 +150,7 @@ impl EPath {
             None => (String::new(), full),
         };
 
-        let entries = Mounter::device(self).ok()?.list(&parent).ok()?;
+        let entries = Mounter::list_at(self, &parent).ok()?;
         entries.into_iter().find_map(|entry| match entry {
             FsEntry::File(file) if file.name == child => Some(EntryKind::File),
             FsEntry::Dir(dir) if dir.name == child => Some(EntryKind::Directory),

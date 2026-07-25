@@ -13,14 +13,14 @@ impl Reader {
     pub fn read_directory(path: &EPath) -> Result<Vec<FsEntry>, String> {
         if Mounter::is_mount(path) {
             let name = mount_entry_name(&path.path);
-            Mounter::device(path)?.list(&name)
+            Mounter::list_at(path, &name)
         } else {
             let disk = path.disk_ref()?;
             let host = host_backend();
             if !host.matches(disk) {
                 return Err("not-a-directory".to_string());
             }
-            host.mount(disk)?.list("")
+            host.mount(disk)?.list()
         }
     }
 

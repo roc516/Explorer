@@ -1,41 +1,38 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use explorer_core::filesystem::{HostBackend, MountedDevice};
-use explorer_core::{DirEntry, FsEntry};
+use explorer_core::{DirEntry, Directory, FsEntry};
 
 use crate::directory;
 
 enum FolderFs {
-    /// Computer roots (volumes / drives); listed via `list("")`.
+    /// Computer roots (volumes / drives).
     Roots,
     Dir(PathBuf),
 }
 
 impl MountedDevice for FolderFs {
-    fn list(&self, name: &str) -> Result<Vec<FsEntry>, String> {
+    fn list(&self) -> Result<Vec<FsEntry>, String> {
         match self {
-            Self::Roots => {
-                if !name.is_empty() {
-                    return Err("roots-have-no-subpath".to_string());
-                }
-                Ok(list_volume_entries())
-            }
-            Self::Dir(root) => {
-                let path = if name.is_empty() {
-                    root.clone()
-                } else {
-                    let mut path = root.clone();
-                    for part in name.split(['/', '\\']) {
-                        if !part.is_empty() {
-                            path.push(part);
-                        }
-                    }
-                    path
-                };
-                directory::read_directory(&path)
-            }
+            Self::Roots => Ok(list_volume_entries()),
+            Self::Dir(root) => list_folder(root),
         }
     }
+}
+
+struct FolderDir(PathBuf);
+
+impl Directory for FolderDir {
+    fn list(&self) -> Result<Vec<FsEntry>, String> {
+        list_folder(&self.0)
+    }
+}
+
+fn list_folder(root: &Path) -> Result<Vec<FsEntry>, String> {
+    directory::read_directory(root, |name, path| {
+        DirEntry::new(name, path.clone(), Arc::new(FolderDir(path)))
+    })
 }
 
 fn list_volume_entries() -> Vec<FsEntry> {
@@ -46,20 +43,23 @@ fn list_volume_entries() -> Vec<FsEntry> {
                 let drive = format!("{}:\\", letter as char);
                 let path = PathBuf::from(&drive);
                 path.exists().then(|| {
-                    FsEntry::Dir(DirEntry {
-                        name: drive,
-                        path,
-                    })
+                    FsEntry::Dir(DirEntry::new(
+                        drive,
+                        path.clone(),
+                        Arc::new(FolderDir(path)),
+                    ))
                 })
             })
             .collect()
     }
     #[cfg(not(windows))]
     {
-        vec![FsEntry::Dir(DirEntry {
-            name: "/".to_string(),
-            path: PathBuf::from("/"),
-        })]
+        let path = PathBuf::from("/");
+        vec![FsEntry::Dir(DirEntry::new(
+            "/".to_string(),
+            path.clone(),
+            Arc::new(FolderDir(path)),
+        ))]
     }
 }
 

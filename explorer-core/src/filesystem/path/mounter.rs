@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
+use crate::entry::{DirEntry, FsEntry};
 use crate::filesystem::backends::{try_registry, BlockDevice, DeviceId, MountedDevice};
 
 use super::epath::EPath;
@@ -56,7 +57,7 @@ impl Mounter {
         ))
     }
 
-    /// Cached mounted filesystem for an archive path.
+    /// Cached mounted filesystem root for an archive path.
     pub fn device(path: &EPath) -> Result<Arc<dyn MountedDevice>, String> {
         if !Self::is_mount(path) {
             return Err("not-a-mount-path".to_string());
@@ -82,6 +83,45 @@ impl Mounter {
         Ok(mounted)
     }
 
+    /// List children at `relative` under the archive root (`""` = mount root).
+    ///
+    /// Root uses [`MountedDevice::list`]; nested paths walk [`DirEntry`] and call
+    /// [`DirEntry::list`].
+    pub fn list_at(path: &EPath, relative: &str) -> Result<Vec<FsEntry>, String> {
+        let relative = relative.trim_matches(|c| c == '/' || c == '\\');
+        if relative.is_empty() {
+            return Self::device(path)?.list();
+        }
+        Self::dir_entry_at(path, relative)?.list()
+    }
+
+    /// Resolve a nested directory entry under the archive root.
+    pub fn dir_entry_at(path: &EPath, relative: &str) -> Result<DirEntry, String> {
+        let parts: Vec<&str> = relative
+            .split(['/', '\\'])
+            .filter(|part| !part.is_empty())
+            .collect();
+        if parts.is_empty() {
+            return Err("empty-directory-path".to_string());
+        }
+
+        let mut entries = Self::device(path)?.list()?;
+        for (index, part) in parts.iter().enumerate() {
+            let dir = entries
+                .into_iter()
+                .find_map(|entry| match entry {
+                    FsEntry::Dir(dir) if dir.name == *part => Some(dir),
+                    _ => None,
+                })
+                .ok_or_else(|| "directory-not-found".to_string())?;
+            if index + 1 == parts.len() {
+                return Ok(dir);
+            }
+            entries = dir.list()?;
+        }
+        Err("directory-not-found".to_string())
+    }
+
     /// Reconstruct a [`BlockDevice`] from a [`DeviceId`] (mountable devices only).
     pub fn block_device_for(id: &DeviceId) -> Result<BlockDevice, String> {
         match id {
@@ -90,17 +130,17 @@ impl Mounter {
             }
             DeviceId::Host(path) => BlockDevice::open_host(path.clone()),
             DeviceId::Nested { parent, entry } => {
-                let parent_fs = Self::device_by_id(parent)?;
                 let full = path_to_mount_name(entry);
                 let (dir, child) = match full.rsplit_once('/') {
                     Some((dir, child)) => (dir.to_string(), child.to_string()),
                     None => (String::new(), full),
                 };
-                let file = parent_fs
-                    .list(&dir)?
+                let parent_root = Self::device_by_id(parent)?;
+                let entries = list_under_device(&parent_root, &dir)?;
+                let file = entries
                     .into_iter()
                     .find_map(|entry| match entry {
-                        crate::entry::FsEntry::File(file) if file.name == child => Some(file),
+                        FsEntry::File(file) if file.name == child => Some(file),
                         _ => None,
                     })
                     .ok_or_else(|| "file-not-found".to_string())?;
@@ -198,4 +238,34 @@ fn path_to_mount_name(path: &Path) -> String {
         })
         .collect::<Vec<_>>()
         .join("/")
+}
+
+fn list_under_device(
+    root: &Arc<dyn MountedDevice>,
+    relative: &str,
+) -> Result<Vec<FsEntry>, String> {
+    let relative = relative.trim_matches(|c| c == '/' || c == '\\');
+    if relative.is_empty() {
+        return root.list();
+    }
+
+    let parts: Vec<&str> = relative
+        .split(['/', '\\'])
+        .filter(|part| !part.is_empty())
+        .collect();
+    let mut entries = root.list()?;
+    for (index, part) in parts.iter().enumerate() {
+        let dir = entries
+            .into_iter()
+            .find_map(|entry| match entry {
+                FsEntry::Dir(dir) if dir.name == *part => Some(dir),
+                _ => None,
+            })
+            .ok_or_else(|| "directory-not-found".to_string())?;
+        if index + 1 == parts.len() {
+            return dir.list();
+        }
+        entries = dir.list()?;
+    }
+    Err("directory-not-found".to_string())
 }

@@ -96,7 +96,7 @@ pub fn list_drives() -> Vec<crate::filesystem::Volume> {
     let Ok(device) = host.mount(roots) else {
         return Vec::new();
     };
-    let Ok(entries) = device.list("") else {
+    let Ok(entries) = device.list() else {
         return Vec::new();
     };
     entries

@@ -4,7 +4,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use explorer_core::filesystem::{BlockDevice, BlockIo, FsBackend, MountedDevice};
-use explorer_core::{DirEntry, FileBytes, FileEntry as CoreFileEntry, FsEntry};
+use explorer_core::{DirEntry, Directory, FileBytes, FileEntry as CoreFileEntry, FsEntry};
 use zip::ZipArchive;
 
 use crate::path::{join_dir_name, strip_prefix, zip_prefix};
@@ -76,9 +76,17 @@ impl FileBytes for ZipFileBytes {
     }
 }
 
+/// Mount root of a zip archive.
 pub struct ZipFs {
-    entries: Vec<ZipEntryRecord>,
+    entries: Arc<Vec<ZipEntryRecord>>,
     archive: Arc<Mutex<ZipArchive<BlockReader>>>,
+}
+
+/// A directory inside a zip — listed via [`Directory`], not [`MountedDevice`].
+struct ZipDir {
+    entries: Arc<Vec<ZipEntryRecord>>,
+    archive: Arc<Mutex<ZipArchive<BlockReader>>>,
+    dir: String,
 }
 
 impl ZipFs {
@@ -101,77 +109,97 @@ impl ZipFs {
         }
 
         Ok(Self {
-            entries,
+            entries: Arc::new(entries),
             archive: Arc::new(Mutex::new(archive)),
         })
     }
+}
 
-    fn read_directory(&self, dir_name: &str) -> Result<Vec<FsEntry>, String> {
-        let prefix = zip_prefix(dir_name);
-        let mut directories = BTreeSet::new();
-        let mut files = Vec::new();
+fn read_directory(
+    entries: &Arc<Vec<ZipEntryRecord>>,
+    archive: &Arc<Mutex<ZipArchive<BlockReader>>>,
+    dir: &str,
+) -> Result<Vec<FsEntry>, String> {
+    let prefix = zip_prefix(dir);
+    let mut directories = BTreeSet::new();
+    let mut files = Vec::new();
 
-        for entry in &self.entries {
-            let Some(relative) = strip_prefix(&entry.name, &prefix) else {
-                continue;
-            };
-            if relative.is_empty() {
-                continue;
-            }
-
-            let parts: Vec<&str> = relative.split('/').collect();
-            if parts.len() == 1 {
-                files.push(FsEntry::File(CoreFileEntry::new(
-                    parts[0].to_string(),
-                    join_dir_name(dir_name, parts[0]),
-                    entry.size,
-                    None,
-                    Arc::new(ZipFileBytes {
-                        archive: self.archive.clone(),
-                        index: entry.index,
-                    }),
-                )));
-            } else {
-                directories.insert(parts[0].to_string());
-            }
+    for entry in entries.iter() {
+        let Some(relative) = strip_prefix(&entry.name, &prefix) else {
+            continue;
+        };
+        if relative.is_empty() {
+            continue;
         }
 
-        let mut items: Vec<FsEntry> = directories
-            .into_iter()
-            .map(|name| {
-                FsEntry::Dir(DirEntry {
-                    path: join_dir_name(dir_name, &name),
-                    name,
-                })
-            })
-            .collect();
-
-        items.append(&mut files);
-        items.sort_by(|left, right| {
-            let left_is_dir = matches!(left, FsEntry::Dir(_));
-            let right_is_dir = matches!(right, FsEntry::Dir(_));
-            let left_name = match left {
-                FsEntry::Dir(d) => &d.name,
-                FsEntry::File(f) => &f.name,
-            };
-            let right_name = match right {
-                FsEntry::Dir(d) => &d.name,
-                FsEntry::File(f) => &f.name,
-            };
-            match (left_is_dir, right_is_dir) {
-                (true, false) => std::cmp::Ordering::Less,
-                (false, true) => std::cmp::Ordering::Greater,
-                _ => left_name.to_lowercase().cmp(&right_name.to_lowercase()),
-            }
-        });
-
-        Ok(items)
+        let parts: Vec<&str> = relative.split('/').collect();
+        if parts.len() == 1 {
+            files.push(FsEntry::File(CoreFileEntry::new(
+                parts[0].to_string(),
+                join_dir_name(dir, parts[0]),
+                entry.size,
+                None,
+                Arc::new(ZipFileBytes {
+                    archive: archive.clone(),
+                    index: entry.index,
+                }),
+            )));
+        } else {
+            directories.insert(parts[0].to_string());
+        }
     }
+
+    let mut items: Vec<FsEntry> = directories
+        .into_iter()
+        .map(|name| {
+            let child_dir = if dir.is_empty() {
+                name.clone()
+            } else {
+                format!("{dir}/{name}")
+            };
+            FsEntry::Dir(DirEntry::new(
+                name.clone(),
+                join_dir_name(dir, &name),
+                Arc::new(ZipDir {
+                    entries: entries.clone(),
+                    archive: archive.clone(),
+                    dir: child_dir,
+                }),
+            ))
+        })
+        .collect();
+
+    items.append(&mut files);
+    items.sort_by(|left, right| {
+        let left_is_dir = matches!(left, FsEntry::Dir(_));
+        let right_is_dir = matches!(right, FsEntry::Dir(_));
+        let left_name = match left {
+            FsEntry::Dir(d) => &d.name,
+            FsEntry::File(f) => &f.name,
+        };
+        let right_name = match right {
+            FsEntry::Dir(d) => &d.name,
+            FsEntry::File(f) => &f.name,
+        };
+        match (left_is_dir, right_is_dir) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => left_name.to_lowercase().cmp(&right_name.to_lowercase()),
+        }
+    });
+
+    Ok(items)
 }
 
 impl MountedDevice for ZipFs {
-    fn list(&self, name: &str) -> Result<Vec<FsEntry>, String> {
-        self.read_directory(name)
+    fn list(&self) -> Result<Vec<FsEntry>, String> {
+        read_directory(&self.entries, &self.archive, "")
+    }
+}
+
+impl Directory for ZipDir {
+    fn list(&self) -> Result<Vec<FsEntry>, String> {
+        read_directory(&self.entries, &self.archive, &self.dir)
     }
 }
 
