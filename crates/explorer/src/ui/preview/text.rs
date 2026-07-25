@@ -297,10 +297,13 @@ pub fn view(
 
     scrollable(
         column(rows)
-            .width(Fill)
+            .width(Length::Shrink)
             .height(Length::Fixed(line_count as f32 * LINE_HEIGHT)),
     )
-    .direction(Direction::Vertical(scrollable::Scrollbar::default()))
+    .direction(Direction::Both {
+        vertical: scrollable::Scrollbar::default(),
+        horizontal: scrollable::Scrollbar::default(),
+    })
     .on_scroll(|viewport| preview::Message::TextScrolled(viewport.absolute_offset().y))
     .width(Fill)
     .height(Fill)

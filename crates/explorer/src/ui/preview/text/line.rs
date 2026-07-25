@@ -1,5 +1,6 @@
 use iced::widget::text;
-use iced::{Element, Fill, Font};
+use iced::widget::text::Wrapping;
+use iced::{Element, Font, Length};
 
 use crate::message::preview;
 
@@ -12,6 +13,7 @@ pub fn view(content: String) -> Element<'static, preview::Message> {
         .line_height(iced::widget::text::LineHeight::Absolute(iced::Pixels(
             LINE_HEIGHT,
         )))
-        .width(Fill)
+        .wrapping(Wrapping::None)
+        .width(Length::Shrink)
         .into()
 }
