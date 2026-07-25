@@ -1,6 +1,6 @@
 use std::fmt;
 
-use explorer_ui::{ids, LanguageBundle, PreviewFile, PreviewKind, TextEncoding, TextPreview};
+use explorer_app::{ids, LanguageBundle, PreviewFile, PreviewKind, TextEncoding, TextPreview};
 use iced::widget::{container, pick_list, row, text, Space};
 use iced::widget::text_editor;
 use iced::{alignment, Element, Fill, Length};
@@ -9,7 +9,7 @@ use crate::fluent::{
     FONT_SIZE_CAPTION, HEIGHT_PREVIEW_STATUS_BAR, PAGE_PADDING_H, SPACE_MD, SPACE_XS,
 };
 use crate::message::preview;
-use crate::widget::style::{error_text, pick_list_style};
+use crate::ui::style::{error_text, pick_list_style};
 
 use super::{preview_message, preview_status_bar, read_only_editor, status_muted_text};
 

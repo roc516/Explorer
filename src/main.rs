@@ -2,6 +2,7 @@ mod app;
 mod fluent;
 mod message;
 mod theme;
+mod ui;
 mod widget;
 mod window_icon;
 

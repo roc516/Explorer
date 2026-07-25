@@ -1,5 +1,5 @@
 use explorer_core::{EPath, Reader};
-use explorer_ui::FileEntry;
+use explorer_app::FileEntry;
 use iced::Task;
 
 use super::message::Message;

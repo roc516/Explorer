@@ -1,4 +1,4 @@
-use explorer_ui::{ids, ImagePreview, LanguageBundle, PreviewFile, PreviewKind};
+use explorer_app::{ids, ImagePreview, LanguageBundle, PreviewFile, PreviewKind};
 use iced::mouse;
 use iced::widget::{button, container, image, mouse_area, row, scrollable, text, Space};
 use iced::widget::scrollable::Direction;
@@ -10,8 +10,8 @@ use crate::fluent::{
     PAGE_PADDING_H, SPACE_LG, SPACE_MD, SPACE_SM, SPACE_XS,
 };
 use crate::message::preview;
-use crate::widget::lucide_icon;
-use crate::widget::style::{icon_button, secondary_button};
+use crate::ui::lucide_icon;
+use crate::ui::style::{icon_button, secondary_button};
 
 use super::{preview_status_bar, status_muted_text};
 

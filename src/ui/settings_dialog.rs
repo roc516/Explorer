@@ -1,6 +1,6 @@
 use std::fmt;
 
-use explorer_ui::{ids, Language, LanguageBundle};
+use explorer_app::{ids, Language, LanguageBundle};
 use iced::widget::{button, column, container, mouse_area, pick_list, row, rule, text, Space};
 use iced::{alignment, Element, Fill, Length, Theme};
 use lucide_icons::Icon;
@@ -10,11 +10,11 @@ use crate::fluent::{
 };
 use crate::message::{settings, theme, Message as AppMessage};
 use crate::theme::{theme_options, AppTheme};
-use crate::widget::lucide_icon;
-use crate::widget::style::{dialog_container, dialog_divider, icon_button, pick_list_style};
+use crate::ui::lucide_icon;
+use crate::ui::style::{dialog_container, dialog_divider, icon_button, pick_list_style};
 
 pub mod locale {
-        use explorer_ui::Language;
+        use explorer_app::Language;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum Message {
@@ -26,9 +26,9 @@ const THEME_MENU_HEIGHT: f32 = 280.0;
 const CLOSE_BUTTON_SIZE: f32 = 32.0;
 const CLOSE_ICON_SIZE: f32 = 16.0;
 
-pub struct SettingsDialogWidget;
+pub struct SettingsDialog;
 
-impl SettingsDialogWidget {
+impl SettingsDialog {
     pub fn new() -> Self {
         Self
     }
@@ -104,7 +104,7 @@ impl SettingsDialogWidget {
     }
 }
 
-impl Default for SettingsDialogWidget {
+impl Default for SettingsDialog {
     fn default() -> Self {
         Self::new()
     }

@@ -1,4 +1,4 @@
-use explorer_ui::{PreviewFile, TextEncoding};
+use explorer_app::{PreviewFile, TextEncoding};
 use iced::widget::text_editor;
 
 #[derive(Debug, Clone)]

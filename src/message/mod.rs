@@ -11,7 +11,7 @@ pub enum Message {
     WindowClosed(iced::window::Id),
     WindowFocused(iced::window::Id),
     Theme(theme::Message),
-    Locale(crate::widget::settings_dialog::locale::Message),
+    Locale(crate::ui::settings_dialog::locale::Message),
     Settings(settings::Message),
 }
 

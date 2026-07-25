@@ -3,7 +3,7 @@ mod image;
 mod text;
 
 use explorer_core::EPath;
-use explorer_ui::{ids, LanguageBundle, PreviewFile, PreviewKind};
+use explorer_app::{ids, LanguageBundle, PreviewFile, PreviewKind};
 use fluent::{FluentArgs, FluentValue};
 use iced::widget::{
     button, column, container, mouse_area, rule, row, scrollable,
@@ -17,8 +17,8 @@ use crate::fluent::{
     DIALOG_WIDTH_PREVIEW, HEIGHT_PREVIEW_BODY, HEIGHT_PREVIEW_STATUS_BAR, SPACE_LG, SPACE_MD, SPACE_SM,
 };
 use crate::message::preview;
-use crate::widget::lucide_icon;
-use crate::widget::style::{dialog_container, dialog_divider, error_text, icon_button, secondary_button};
+use crate::ui::lucide_icon;
+use crate::ui::style::{dialog_container, dialog_divider, error_text, icon_button, secondary_button};
 use crate::widget::wheel_blocker::WheelBlocker;
 
 #[derive(Debug, Clone)]
@@ -57,14 +57,14 @@ impl PreviewState {
 
 pub fn load_preview_task(path: EPath) -> Task<preview::Message> {
     Task::perform(
-        async move { explorer_ui::load_preview(&path) },
+        async move { explorer_app::load_preview(&path) },
         preview::Message::Loaded,
     )
 }
 
-pub struct PreviewDialogWidget;
+pub struct PreviewDialog;
 
-impl PreviewDialogWidget {
+impl PreviewDialog {
     pub fn new() -> Self {
         Self
     }
@@ -163,7 +163,7 @@ impl PreviewDialogWidget {
     }
 }
 
-impl Default for PreviewDialogWidget {
+impl Default for PreviewDialog {
     fn default() -> Self {
         Self::new()
     }

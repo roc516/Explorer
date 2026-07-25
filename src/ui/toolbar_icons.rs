@@ -3,7 +3,7 @@ use iced::{alignment, Element, Length, Theme};
 use lucide_icons::Icon;
 
 use crate::fluent::NAV_BUTTON_SIZE;
-use crate::widget::lucide_icon;
+use crate::ui::lucide_icon;
 
 const NAV_ICON_SIZE: f32 = 16.0;
 

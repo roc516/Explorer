@@ -10,7 +10,7 @@ mod task;
 pub use message::{Action, Message};
 pub use task::load_directory_task;
 
-use explorer_ui::{ids, ExplorerModel};
+use explorer_app::{ids, ExplorerModel};
 use iced::event;
 use iced::widget::{column, container, rule, scrollable, text};
 use iced::{Element, Fill, Subscription, Task};
@@ -20,13 +20,13 @@ use crate::fluent::{SPACE_LG, SPACE_XS, PAGE_PADDING_H};
 use columns::{ActiveColumnResize, ColumnWidths};
 use sort::{apply_sort, SortDirection, SortState};
 
-pub struct FileListWidget {
+pub struct FileList {
     column_widths: ColumnWidths,
     column_resize: Option<ActiveColumnResize>,
     sort: SortState,
 }
 
-impl FileListWidget {
+impl FileList {
     pub fn new() -> Self {
         Self {
             column_widths: ColumnWidths::default(),
@@ -56,17 +56,17 @@ impl FileListWidget {
             Message::EntryDoubleClicked(index) => {
                 let action = model.open_entry(index);
                 let (task, file_action) = match action {
-                    Some(explorer_ui::OpenEntryAction::Navigate(path)) => (
+                    Some(explorer_app::OpenEntryAction::Navigate(path)) => (
                         load_directory_task(path.clone()),
-                        Some(Action::DirectoryChanged(path)),
+                        Some(Action::Navigated(path)),
                     ),
-                    Some(explorer_ui::OpenEntryAction::Preview(path)) => {
+                    Some(explorer_app::OpenEntryAction::Preview(path)) => {
                         (Task::none(), Some(Action::PreviewFile(path)))
                     }
-                    Some(explorer_ui::OpenEntryAction::OpenArchive(path)) => {
+                    Some(explorer_app::OpenEntryAction::OpenArchive(path)) => {
                         (Task::none(), Some(Action::OpenArchive(path)))
                     }
-                    Some(explorer_ui::OpenEntryAction::OpenedSystem { .. }) => {
+                    Some(explorer_app::OpenEntryAction::OpenedSystem { .. }) => {
                         (Task::none(), None)
                     }
                     None => (Task::none(), None),
@@ -78,7 +78,7 @@ impl FileListWidget {
                 let action = result
                     .as_ref()
                     .ok()
-                    .map(|(path, _)| Action::DirectoryChanged(path.clone()));
+                    .map(|(path, _)| Action::DirectoryLoaded(path.clone()));
                 model.on_directory_loaded(result);
                 apply_sort(model, self.sort);
                 (Task::none(), action)
@@ -175,7 +175,7 @@ impl FileListWidget {
     }
 }
 
-impl Default for FileListWidget {
+impl Default for FileList {
     fn default() -> Self {
         Self::new()
     }

@@ -1236,14 +1236,32 @@ dependencies = [
 name = "explorer"
 version = "0.1.0"
 dependencies = [
+ "explorer-app",
  "explorer-core",
  "explorer-fs-folder",
  "explorer-fs-zip",
- "explorer-ui",
  "fluent",
  "fontdue",
  "iced",
  "lucide-icons",
+]
+
+[[package]]
+name = "explorer-app"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "encoding_rs",
+ "explorer-core",
+ "fixed_decimal",
+ "fluent",
+ "fluent-bundle",
+ "icu_decimal",
+ "icu_locale",
+ "image",
+ "office_oxide",
+ "pdf-extract",
+ "unic-langid",
 ]
 
 [[package]]
@@ -1266,24 +1284,6 @@ version = "0.1.0"
 dependencies = [
  "explorer-core",
  "zip",
-]
-
-[[package]]
-name = "explorer-ui"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "encoding_rs",
- "explorer-core",
- "fixed_decimal",
- "fluent",
- "fluent-bundle",
- "icu_decimal",
- "icu_locale",
- "image",
- "office_oxide",
- "pdf-extract",
- "unic-langid",
 ]
 
 [[package]]

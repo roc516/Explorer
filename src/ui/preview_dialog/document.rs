@@ -1,4 +1,4 @@
-use explorer_ui::{ids, LanguageBundle, PreviewFile, PreviewKind};
+use explorer_app::{ids, LanguageBundle, PreviewFile, PreviewKind};
 use fluent::{FluentArgs, FluentValue};
 use iced::widget::{container, row, text, Space};
 use iced::widget::text_editor;

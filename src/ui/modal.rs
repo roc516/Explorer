@@ -2,7 +2,7 @@ use iced::widget::{container, mouse_area, stack, Space};
 use iced::{alignment, Element, Fill, Length};
 
 use crate::message::Message;
-use crate::widget::settings_dialog;
+use crate::ui::settings_dialog;
 use crate::widget::wheel_blocker::WheelBlocker;
 
 pub fn overlay(

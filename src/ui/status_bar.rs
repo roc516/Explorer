@@ -1,13 +1,13 @@
-use explorer_ui::ExplorerModel;
+use explorer_app::ExplorerModel;
 use iced::widget::{container, row, text, Space};
 use iced::{alignment, Element, Fill, Theme};
 
 use crate::fluent::{HEIGHT_STATUS_BAR, PAGE_PADDING_H, SPACE_SM};
 use crate::message::Message;
 
-pub struct StatusBarWidget;
+pub struct StatusBar;
 
-impl StatusBarWidget {
+impl StatusBar {
     pub fn new() -> Self {
         Self
     }
@@ -31,7 +31,7 @@ impl StatusBarWidget {
     }
 }
 
-impl Default for StatusBarWidget {
+impl Default for StatusBar {
     fn default() -> Self {
         Self::new()
     }

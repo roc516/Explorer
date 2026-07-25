@@ -1,5 +1,5 @@
 use explorer_core::{BlockDevice, EPath};
-use explorer_ui::{load_tree_children, DirectoryTree, TreeNode, TreeRow};
+use explorer_app::{load_tree_children, DirectoryTree as DirectoryTreeState, TreeNode, TreeRow};
 use iced::widget::{button, column, container, mouse_area, row, scrollable, text, Space};
 use iced::{alignment, Element, Fill, Length, Task, Theme};
 
@@ -7,7 +7,7 @@ use crate::fluent::{
     HEIGHT_LIST_ROW, NAV_PANE_WIDTH, PAGE_PADDING_H, RADIUS_CONTROL, SPACE_LG,
     SPACE_SM, SPACE_XS,
 };
-use crate::widget::tree_icons;
+use crate::ui::tree_icons;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -25,21 +25,21 @@ pub enum Action {
     Navigate(EPath),
 }
 
-pub struct DirectoryTreeWidget {
-    state: DirectoryTree,
+pub struct DirectoryTree {
+    state: DirectoryTreeState,
     width: Length,
 }
 
-impl DirectoryTreeWidget {
+impl DirectoryTree {
     pub fn new() -> Self {
-        Self::with_tree(DirectoryTree::new())
+        Self::with_tree(DirectoryTreeState::new())
     }
 
     pub fn for_mounted(device: BlockDevice) -> Self {
-        Self::with_tree(DirectoryTree::for_mounted(device))
+        Self::with_tree(DirectoryTreeState::for_mounted(device))
     }
 
-    fn with_tree(state: DirectoryTree) -> Self {
+    fn with_tree(state: DirectoryTreeState) -> Self {
         Self {
             state,
             width: Length::Fixed(NAV_PANE_WIDTH),
@@ -72,9 +72,9 @@ impl DirectoryTreeWidget {
         Task::batch(pending.into_iter().map(load_children_task))
     }
 
-    pub fn view(&self, bundle: explorer_ui::LanguageBundle) -> Element<'_, Message> {
+    pub fn view(&self, bundle: explorer_app::LanguageBundle) -> Element<'_, Message> {
         let rows = self.state.rows();
-        let no_locations = bundle.tr(explorer_ui::ids::TREE_NO_LOCATIONS);
+        let no_locations = bundle.tr(explorer_app::ids::TREE_NO_LOCATIONS);
         let content: Element<'_, Message> = if rows.is_empty() {
             column![container(text(no_locations).size(13).style(empty_hint)).padding([
                 SPACE_LG, PAGE_PADDING_H
@@ -95,7 +95,7 @@ impl DirectoryTreeWidget {
     }
 }
 
-impl Default for DirectoryTreeWidget {
+impl Default for DirectoryTree {
     fn default() -> Self {
         Self::new()
     }

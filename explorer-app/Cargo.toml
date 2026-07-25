@@ -1,8 +1,8 @@
 [package]
-name = "explorer-ui"
+name = "explorer-app"
 version = "0.1.0"
 edition = "2021"
-description = "UI components for the file explorer built on top of explorer-core"
+description = "Application state, i18n, and presentation logic for the file explorer"
 
 [dependencies]
 explorer-core = { path = "../explorer-core" }

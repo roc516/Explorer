@@ -5,7 +5,7 @@ use lucide_icons::Icon;
 use crate::fluent::{
     FONT_SIZE_CAPTION, HEIGHT_LIST_ROW, PAGE_PADDING_H, RADIUS_CONTROL, SPACE_XS,
 };
-use crate::widget::lucide_icon;
+use crate::ui::lucide_icon;
 
 use super::columns::{Column, ColumnWidths, COL_ICON};
 use super::message::Message;

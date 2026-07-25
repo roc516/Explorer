@@ -1,5 +1,5 @@
 use explorer_core::{BlockDevice, EPath};
-use explorer_ui::FileEntry;
+use explorer_app::FileEntry;
 
 use super::columns::Column;
 
@@ -16,7 +16,10 @@ pub enum Message {
 
 #[derive(Debug, Clone)]
 pub enum Action {
-    DirectoryChanged(EPath),
+    /// User navigated into a directory (push history + sync tree).
+    Navigated(EPath),
+    /// Directory listing finished (sync address bar + tree).
+    DirectoryLoaded(EPath),
     PreviewFile(EPath),
     OpenArchive(BlockDevice),
 }

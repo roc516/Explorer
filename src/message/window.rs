@@ -1,7 +1,7 @@
 use explorer_core::filesystem::BlockDevice;
 
 use crate::message::{input, preview};
-use crate::widget::{directory_tree, file_list, toolbar};
+use crate::ui::{directory_tree, file_list, toolbar};
 
 #[derive(Debug, Clone)]
 pub enum Message {
