@@ -6,6 +6,8 @@ pub use backends::{
     try_host, try_registry, BlockDevice, BlockIo, DeviceId, EntryKind, FsBackend, FsRegistry,
     HostBackend, MountedDevice,
 };
-pub use path::{file_name_of, mount_entry_name, navigation_parent, Mounter, EPath};
+pub use path::{
+    file_name_of, mount_entry_name, navigation_parent, MountedRoot, Mounter,
+};
 
 pub use backends::list_drives;

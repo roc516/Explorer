@@ -1,4 +1,3 @@
-use explorer_core::Mounter;
 use explorer_app::{breadcrumbs, mount_root_label, ExplorerModel};
 use iced::window as iced_window;
 use iced::widget::{button, container, mouse_area, row, scrollable, text};
@@ -13,10 +12,7 @@ pub fn breadcrumb_bar(
     model: &ExplorerModel,
     window_id: iced_window::Id,
 ) -> Element<'static, AppMessage> {
-    let root_label = model
-        .mount_root()
-        .and_then(|root| Mounter::mount_ref(root).ok())
-        .map(|(container, _)| mount_root_label(container));
+    let root_label = model.mount().map(|_| mount_root_label());
     let crumbs = breadcrumbs(model.current_path(), root_label);
     let last_index = crumbs.len().saturating_sub(1);
     let mut items: Vec<Element<'static, AppMessage>> = Vec::new();

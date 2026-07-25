@@ -1,7 +1,5 @@
 use std::path::{Component, Path, PathBuf};
 
-use explorer_core::filesystem::DeviceId;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathBreadcrumb {
     /// In-window navigation path: absolute disk path, or path relative to the mount root.
@@ -12,7 +10,7 @@ pub struct PathBreadcrumb {
 /// Build breadcrumbs for a disk path or a mount-internal path.
 ///
 /// - Disk: pass the absolute path and `root_label = None`.
-/// - Mount: pass the path inside the archive and `root_label = Some(archive name)`.
+/// - Mount: pass the path inside the archive and `root_label = Some("/")`.
 pub fn breadcrumbs(path: &Path, root_label: Option<String>) -> Vec<PathBreadcrumb> {
     match root_label {
         Some(label) => mount_breadcrumbs(label, path),
@@ -20,20 +18,9 @@ pub fn breadcrumbs(path: &Path, root_label: Option<String>) -> Vec<PathBreadcrum
     }
 }
 
-/// Label for the mount-root crumb (usually the archive file name).
-pub fn mount_root_label(container: &DeviceId) -> String {
-    match container {
-        DeviceId::Host(path) => path
-            .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .filter(|name| !name.is_empty())
-            .unwrap_or_else(|| path.display().to_string()),
-        DeviceId::Nested { entry, .. } => entry
-            .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .filter(|name| !name.is_empty())
-            .unwrap_or_else(|| entry.display().to_string()),
-    }
+/// Label for the mount-root crumb.
+pub fn mount_root_label() -> String {
+    "/".to_string()
 }
 
 fn mount_breadcrumbs(root_label: String, inner: &Path) -> Vec<PathBreadcrumb> {

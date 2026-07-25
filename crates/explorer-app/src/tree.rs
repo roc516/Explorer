@@ -53,10 +53,10 @@ impl DirectoryTree {
     }
 
     pub fn for_mounted(device: BlockDevice) -> Self {
-        let (_root, dir) = Mounter::mount_root_dir(device).unwrap_or_else(|message| {
+        let mount = Mounter::mount_root_dir(device).unwrap_or_else(|message| {
             panic!("unsupported archive: {message}")
         });
-        Self::with_roots(vec![TreeNode::from_dir(dir)])
+        Self::with_roots(vec![TreeNode::from_dir(mount.dir)])
     }
 
     fn with_roots(roots: Vec<TreeNode>) -> Self {

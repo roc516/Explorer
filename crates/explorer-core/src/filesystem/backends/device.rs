@@ -9,7 +9,7 @@ pub trait BlockIo: Send + Sync {
     fn len(&self) -> u64;
 }
 
-/// Stable identity for caching and [`crate::filesystem::EPath`] roots.
+/// Stable identity for caching and mounted archive roots.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DeviceId {
     /// Host filesystem path. Empty path = disk path (not a mount root).
