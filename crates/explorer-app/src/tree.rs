@@ -106,8 +106,9 @@ impl DirectoryTree {
         }
     }
 
-    pub fn select(&mut self, path: PathBuf) {
-        self.selected = Some(path);
+    pub fn select(&mut self, path: PathBuf) -> Option<DirEntry> {
+        self.selected = Some(path.clone());
+        self.find_entry(&path).cloned()
     }
 
     pub fn on_children_loaded(

@@ -493,11 +493,12 @@ impl Explorer {
         let (task, action) = self.directory_tree.update(message);
         let mut tasks = vec![task.map(window_msg::Message::Tree)];
 
-        if let Some(TreeAction::Navigate(nav)) = action {
-            if let Some(load_path) = self.model.navigate(nav) {
-                self.toolbar.push_history(load_path.clone());
-                tasks.push(self.load_directory(load_path));
-            }
+        if let Some(TreeAction::Navigate(dir)) = action {
+            let path = self.model.navigate_dir(dir.clone());
+            self.toolbar.push_history(path);
+            tasks.push(
+                file_list::load_directory_from_dir(dir).map(window_msg::Message::FileList),
+            );
         }
 
         Task::batch(tasks)

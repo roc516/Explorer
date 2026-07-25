@@ -23,9 +23,9 @@ const INDENT: f32 = 16.0;
 const CHEVRON_WIDTH: f32 = 24.0;
 const ICON_WIDTH: f32 = 18.0;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum Action {
-    Navigate(PathBuf),
+    Navigate(DirEntry),
 }
 
 pub struct DirectoryTree {
@@ -60,8 +60,8 @@ impl DirectoryTree {
                 (task, None)
             }
             Message::Select(path) => {
-                self.state.select(path.clone());
-                (Task::none(), Some(Action::Navigate(path)))
+                let action = self.state.select(path).map(Action::Navigate);
+                (Task::none(), action)
             }
             Message::ChildrenLoaded(path, result) => {
                 let task = self
