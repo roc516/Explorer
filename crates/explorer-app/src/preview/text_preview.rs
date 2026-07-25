@@ -2,8 +2,6 @@ use std::io::Read;
 
 use encoding_rs::{GBK, UTF_16BE, UTF_16LE, WINDOWS_1252};
 
-use super::io;
-
 const MAX_BYTES: u64 = 512 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -113,7 +111,13 @@ pub fn is_extension(ext: &str) -> bool {
 }
 
 pub fn load(reader: &mut dyn Read, size: u64) -> Result<TextPreview, String> {
-    let bytes = io::copy_limited(reader, MAX_BYTES, Some(size))?;
+    if size > MAX_BYTES {
+        return Err("preview-too-large".to_string());
+    }
+    let mut bytes = Vec::with_capacity(size as usize);
+    reader
+        .read_to_end(&mut bytes)
+        .map_err(|err| err.to_string())?;
     let (content, resolved_encoding) = TextEncoding::Auto.decode(&bytes)?;
     Ok(TextPreview {
         raw: bytes,

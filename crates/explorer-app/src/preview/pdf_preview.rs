@@ -1,7 +1,5 @@
 use std::io::Read;
 
-use super::io;
-
 const MAX_BYTES: u64 = 32 * 1024 * 1024;
 
 #[derive(Debug, Clone)]
@@ -15,7 +13,13 @@ pub fn is_extension(ext: &str) -> bool {
 }
 
 pub fn load(reader: &mut dyn Read, size: u64) -> Result<PdfPreview, String> {
-    let bytes = io::copy_limited(reader, MAX_BYTES, Some(size))?;
+    if size > MAX_BYTES {
+        return Err("preview-too-large".to_string());
+    }
+    let mut bytes = Vec::with_capacity(size as usize);
+    reader
+        .read_to_end(&mut bytes)
+        .map_err(|err| err.to_string())?;
     let pages = pdf_extract::extract_text_from_mem_by_pages(&bytes)
         .map_err(|_| "preview-pdf-failed".to_string())?;
 

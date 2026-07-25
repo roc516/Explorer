@@ -1,5 +1,4 @@
 mod image_preview;
-mod io;
 mod pdf_preview;
 mod ppt_preview;
 mod text_preview;
@@ -34,8 +33,8 @@ pub struct PreviewFile {
 
 /// Load preview content from a listed [`FsEntry`] (no path re-resolve).
 ///
-/// Opens a streaming reader and lets each previewer enforce its own byte limit
-/// via [`io::copy_limited`] — the whole file is not buffered up front.
+/// Opens a streaming reader; each previewer rejects oversized files by
+/// declared size, then reads only when within its limit.
 pub fn load_preview(entry: &FsEntry) -> Result<PreviewFile, String> {
     let FsEntry::File(file) = entry else {
         return Err("preview-not-file".to_string());
