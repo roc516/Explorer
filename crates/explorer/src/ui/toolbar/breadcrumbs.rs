@@ -59,7 +59,7 @@ pub fn breadcrumb_bar(
 
 fn breadcrumb_button(
     label: String,
-    path: EPath,
+    path: std::path::PathBuf,
     is_last: bool,
     window_id: iced_window::Id,
 ) -> Element<'static, AppMessage> {

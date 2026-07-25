@@ -182,36 +182,27 @@ impl Mounter {
         Ok((&path.root, &path.path))
     }
 
-    pub(crate) fn mount_backend(path: &EPath) -> Option<&'static str> {
-        Self::is_mount(path).then_some(path.backend)
-    }
-
     /// True when this path is inside a mounted archive (not host folder).
     pub fn is_mount(path: &EPath) -> bool {
         !path.root.is_host_disk()
     }
 
-    pub(crate) fn from_mount_address(input: &str, context: &EPath) -> Option<EPath> {
+    /// Resolve an internal path inside the same mount as `context`.
+    ///
+    /// Optionally strips the current container display prefix so pasting a full
+    /// `display()` string still works. Never changes root or backend.
+    pub(crate) fn from_internal_address(input: &str, context: &EPath) -> Option<EPath> {
         let (container, _) = Self::mount_ref(context).ok()?;
-        let trimmed = input.trim();
-        let prefix = format!("{}\\", container.display());
-        let inner = trimmed
+        let container_display = container.display();
+        let prefix = format!("{}\\", container_display);
+        let inner = input
             .strip_prefix(&prefix)
-            .or_else(|| trimmed.strip_prefix(&container.display()))
-            .unwrap_or(trimmed);
-        let backend = Self::mount_backend(context).or_else(|| {
-            Self::block_device_for(container)
-                .ok()
-                .and_then(|device| {
-                    try_registry()
-                        .and_then(|registry| registry.find_backend(&device))
-                        .map(|backend| backend.id())
-                })
-        })?;
+            .or_else(|| input.strip_prefix(&container_display))
+            .unwrap_or(input);
         Some(Self::mount_path(
-            container.clone(),
+            context.root.clone(),
             normalize_mount_path(inner),
-            backend,
+            context.backend,
         ))
     }
 }

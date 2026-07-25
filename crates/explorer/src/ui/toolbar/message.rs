@@ -1,4 +1,4 @@
-use explorer_core::EPath;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -9,10 +9,10 @@ pub enum Message {
     AddressEdited(String),
     AddressSubmit,
     AddressEditStart,
-    BreadcrumbNavigate(EPath),
+    BreadcrumbNavigate(PathBuf),
 }
 
 #[derive(Debug, Clone)]
 pub enum Action {
-    Load(EPath),
+    Load(PathBuf),
 }

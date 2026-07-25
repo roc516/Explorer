@@ -347,6 +347,7 @@ impl Explorer {
         let (task, action) = self.toolbar.update(message, &mut self.model);
         let mut tasks = vec![task];
         if let Some(ToolbarAction::Load(path)) = action {
+            let path = self.model.current_path.with_navigation_path(path);
             tasks.push(self.load_directory(path));
         }
         Task::batch(tasks)
@@ -362,7 +363,7 @@ impl Explorer {
         if let Some(action) = action {
             match action {
                 FileListAction::Navigated(path) => {
-                    self.toolbar.push_history(path.clone());
+                    self.toolbar.push_history(path.navigation_path());
                     tasks.push(
                         self.directory_tree
                             .sync_path(&path)
@@ -371,7 +372,8 @@ impl Explorer {
                 }
                 FileListAction::DirectoryLoaded(path) => {
                     if let Some(reveal) = self.toolbar.on_directory_loaded(&path) {
-                        self.model.select_path(&reveal);
+                        self.model
+                            .select_path(&path.with_navigation_path(reveal));
                     }
                     tasks.push(
                         self.directory_tree
@@ -496,7 +498,7 @@ impl Explorer {
 
         if let Some(TreeAction::Navigate(path)) = action {
             if let Some(load_path) = self.model.navigate(path) {
-                self.toolbar.push_history(load_path.clone());
+                self.toolbar.push_history(load_path.navigation_path());
                 tasks.push(self.load_directory(load_path));
             }
         }

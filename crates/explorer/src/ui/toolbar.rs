@@ -7,6 +7,8 @@ mod nav;
 pub use address::ADDRESS_INPUT_ID;
 pub use message::{Action, Message};
 
+use std::path::PathBuf;
+
 use explorer_core::EPath;
 use explorer_app::{ids, ExplorerModel, LanguageBundle, ModelError, NavigationHistory};
 use iced::window as iced_window;
@@ -24,20 +26,20 @@ pub struct Toolbar {
     navigation: NavigationHistory,
     address_input: String,
     address_editing: bool,
-    reveal_path: Option<EPath>,
+    reveal_path: Option<PathBuf>,
 }
 
 impl Toolbar {
     pub fn new(initial_path: &EPath) -> Self {
         Self {
-            navigation: NavigationHistory::new(initial_path.clone()),
-            address_input: initial_path.display(),
+            navigation: NavigationHistory::new(initial_path.navigation_path()),
+            address_input: initial_path.internal_display(),
             address_editing: false,
             reveal_path: None,
         }
     }
 
-    pub fn push_history(&mut self, path: EPath) {
+    pub fn push_history(&mut self, path: PathBuf) {
         self.navigation.push(path);
     }
 
@@ -47,18 +49,18 @@ impl Toolbar {
 
     pub fn cancel_address_edit(&mut self, current_path: &EPath) {
         self.address_editing = false;
-        self.address_input = current_path.display();
+        self.address_input = current_path.internal_display();
     }
 
     /// Sync address bar after a directory finished loading.
-    /// Returns a path that should be selected in the file list, if any.
-    pub fn on_directory_loaded(&mut self, path: &EPath) -> Option<EPath> {
+    /// Returns a navigation path that should be selected in the file list, if any.
+    pub fn on_directory_loaded(&mut self, path: &EPath) -> Option<PathBuf> {
         self.address_editing = false;
         if let Some(reveal) = self.reveal_path.take() {
-            self.address_input = reveal.display();
+            self.address_input = reveal.display().to_string();
             Some(reveal)
         } else {
-            self.address_input = path.display();
+            self.address_input = path.internal_display();
             None
         }
     }
@@ -71,8 +73,9 @@ impl Toolbar {
         match message {
             Message::GoUp => {
                 let action = model.go_up().map(|path| {
-                    self.push_history(path.clone());
-                    Action::Load(path)
+                    let nav = path.navigation_path();
+                    self.push_history(nav.clone());
+                    Action::Load(nav)
                 });
                 (Task::none(), action)
             }
@@ -91,7 +94,7 @@ impl Toolbar {
                 (Task::none(), action)
             }
             Message::Refresh => {
-                let action = model.refresh().map(Action::Load);
+                let action = model.refresh().map(|path| Action::Load(path.navigation_path()));
                 (Task::none(), action)
             }
             Message::AddressEdited(value) => {
@@ -100,7 +103,7 @@ impl Toolbar {
             }
             Message::AddressEditStart => {
                 self.address_editing = true;
-                self.address_input = model.current_path.display();
+                self.address_input = model.current_path.internal_display();
                 (
                     focus::<window_msg::Message>(ADDRESS_INPUT_ID)
                         .chain(select_all(ADDRESS_INPUT_ID)),
@@ -109,9 +112,11 @@ impl Toolbar {
             }
             Message::BreadcrumbNavigate(path) => {
                 self.address_editing = false;
-                let action = model.navigate(path).map(|path| {
-                    self.push_history(path.clone());
-                    Action::Load(path)
+                let target = model.current_path.with_navigation_path(path);
+                let action = model.navigate(target).map(|path| {
+                    let nav = path.navigation_path();
+                    self.push_history(nav.clone());
+                    Action::Load(nav)
                 });
                 (Task::none(), action)
             }
@@ -167,8 +172,9 @@ impl Toolbar {
         if path.is_directory() {
             self.reveal_path = None;
             return model.navigate(path).map(|path| {
-                self.push_history(path.clone());
-                Action::Load(path)
+                let nav = path.navigation_path();
+                self.push_history(nav.clone());
+                Action::Load(nav)
             });
         }
 
@@ -179,17 +185,18 @@ impl Toolbar {
             };
 
             if parent == model.current_path {
-                self.address_input = path.display();
+                self.address_input = path.internal_display();
                 model.error = None;
                 model.select_path(&path);
                 model.status = explorer_app::StatusInfo::ItemCount(model.entries.len());
                 return None;
             }
 
-            self.reveal_path = Some(path);
+            self.reveal_path = Some(path.navigation_path());
             return model.navigate(parent).map(|path| {
-                self.push_history(path.clone());
-                Action::Load(path)
+                let nav = path.navigation_path();
+                self.push_history(nav.clone());
+                Action::Load(nav)
             });
         }
 
@@ -200,6 +207,6 @@ impl Toolbar {
 
 impl Default for Toolbar {
     fn default() -> Self {
-        Self::new(&EPath::local(std::path::PathBuf::from("/")))
+        Self::new(&EPath::local(PathBuf::from("/")))
     }
 }
