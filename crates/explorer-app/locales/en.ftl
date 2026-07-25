@@ -51,6 +51,8 @@ preview-pdf-failed = Failed to read PDF document
 preview-pdf-document = PDF
 preview-pdf-pages = { $count } pages
 preview-zoom-fit = Fit to window
+preview-hex = Hex
+preview-hex-empty = File is empty
 
 column-name = Name
 column-modified = Date modified

@@ -47,6 +47,8 @@ preview-pdf-failed = 无法读取 PDF 文档
 preview-pdf-document = PDF
 preview-pdf-pages = { $count } 页
 preview-zoom-fit = 适应窗口
+preview-hex = 十六进制
+preview-hex-empty = 文件为空
 
 column-name = 名称
 column-modified = 修改日期

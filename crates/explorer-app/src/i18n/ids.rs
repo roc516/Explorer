@@ -47,6 +47,8 @@ pub const PREVIEW_PDF_FAILED: &str = "preview-pdf-failed";
 pub const PREVIEW_PDF_DOCUMENT: &str = "preview-pdf-document";
 pub const PREVIEW_PDF_PAGES: &str = "preview-pdf-pages";
 pub const PREVIEW_ZOOM_FIT: &str = "preview-zoom-fit";
+pub const PREVIEW_HEX: &str = "preview-hex";
+pub const PREVIEW_HEX_EMPTY: &str = "preview-hex-empty";
 
 pub const COLUMN_NAME: &str = "column-name";
 pub const COLUMN_MODIFIED: &str = "column-modified";

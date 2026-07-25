@@ -484,6 +484,20 @@ impl Explorer {
                     }
                 }
             }
+            preview::Message::HexScrolled(y) => {
+                if let Some(state) = &mut self.preview_state {
+                    if let Some(hex) = &mut state.hex {
+                        hex.on_scroll(y);
+                    }
+                }
+            }
+            preview::Message::HexSelect(index) => {
+                if let Some(state) = &mut self.preview_state {
+                    if let Some(hex) = &mut state.hex {
+                        hex.select(index);
+                    }
+                }
+            }
         }
         Task::none()
     }

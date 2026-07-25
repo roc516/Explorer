@@ -13,4 +13,6 @@ pub enum Message {
     ImageZoomOut,
     ImageZoomReset,
     ImageWheelZoom(f32),
+    HexScrolled(f32),
+    HexSelect(usize),
 }

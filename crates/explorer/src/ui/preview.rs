@@ -1,4 +1,5 @@
 mod document;
+mod hex;
 mod image;
 mod text;
 
@@ -29,6 +30,7 @@ pub struct PreviewState {
     pub text: Option<text::Text>,
     pub image: Option<image::Image>,
     pub document: Option<document::Document>,
+    pub hex: Option<hex::Hex>,
 }
 
 impl PreviewState {
@@ -46,6 +48,7 @@ impl PreviewState {
             text: None,
             image: None,
             document: None,
+            hex: None,
         }
     }
 
@@ -54,6 +57,7 @@ impl PreviewState {
         self.text = text::Text::for_file(&file);
         self.image = image::Image::for_file(&file);
         self.document = document::Document::for_file(&file);
+        self.hex = hex::Hex::for_file(&file);
         self.file = Some(file);
     }
 }
@@ -100,6 +104,7 @@ impl Preview {
                     | Some(PreviewKind::Word(_))
                     | Some(PreviewKind::Ppt(_))
                     | Some(PreviewKind::Pdf(_))
+                    | Some(PreviewKind::Hex(_))
             );
 
         let body_height = if show_status_bar {
@@ -124,6 +129,9 @@ impl Preview {
                 PreviewKind::Word(_) | PreviewKind::Ppt(_) | PreviewKind::Pdf(_) => {
                     state.document.as_ref().map(|_| document::status_bar(bundle, file))
                 }
+                PreviewKind::Hex(hex_preview) => state.hex.as_ref().map(|hex| {
+                    hex::status_bar(bundle, hex_preview, hex, file)
+                }),
                 PreviewKind::Unsupported { .. } => None,
             })
         } else {
@@ -187,6 +195,11 @@ fn body_for_file<'a>(
             .document
             .as_ref()
             .map(|document| document::view(bundle, document))
+            .unwrap_or_else(|| preview_message(bundle.tr(ids::PREVIEW_LOAD_FAILED), true)),
+        PreviewKind::Hex(hex_preview) => state
+            .hex
+            .as_ref()
+            .map(|hex| hex::view(bundle, hex_preview, hex))
             .unwrap_or_else(|| preview_message(bundle.tr(ids::PREVIEW_LOAD_FAILED), true)),
         PreviewKind::Unsupported { extension } => unsupported_message(bundle, extension),
     }

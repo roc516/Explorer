@@ -1,3 +1,4 @@
+mod hex_preview;
 mod image_preview;
 mod pdf_preview;
 mod ppt_preview;
@@ -8,6 +9,7 @@ use std::path::Path;
 
 use explorer_core::FsEntry;
 
+pub use hex_preview::HexPreview;
 pub use image_preview::ImagePreview;
 pub use pdf_preview::PdfPreview;
 pub use ppt_preview::PptPreview;
@@ -21,6 +23,7 @@ pub enum PreviewKind {
     Word(WordPreview),
     Ppt(PptPreview),
     Pdf(PdfPreview),
+    Hex(HexPreview),
     Unsupported { extension: Option<String> },
 }
 
@@ -63,7 +66,7 @@ pub fn load_preview(entry: &FsEntry) -> Result<PreviewFile, String> {
         Some(ext) if pdf_preview::is_extension(ext) => {
             PreviewKind::Pdf(pdf_preview::load(&mut *file.open()?, size)?)
         }
-        _ => PreviewKind::Unsupported { extension },
+        _ => PreviewKind::Hex(hex_preview::load(&mut *file.open()?, size)?),
     };
 
     Ok(PreviewFile { name, size, kind })
@@ -108,12 +111,7 @@ pub fn is_previewable_extension(ext: &str) -> bool {
 }
 
 pub fn is_previewable(entry: &FsEntry) -> bool {
-    match entry {
-        FsEntry::File(file) => {
-            extension_of(&file.name).is_some_and(|ext| is_previewable_extension(&ext))
-        }
-        FsEntry::Dir(_) => false,
-    }
+    matches!(entry, FsEntry::File(_))
 }
 
 fn extension_of(name: &str) -> Option<String> {
