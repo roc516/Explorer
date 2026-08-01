@@ -73,7 +73,7 @@ impl ExplorerModel {
     }
 
     pub fn new_mounted(device: BlockDevice) -> Self {
-        let mount = Mounter::mount_root_dir(device).unwrap_or_else(|message| {
+        let mount = Mounter::mount(device).unwrap_or_else(|message| {
             panic!("unsupported archive: {message}")
         });
         let current_dir = mount_root_dir(mount.clone());

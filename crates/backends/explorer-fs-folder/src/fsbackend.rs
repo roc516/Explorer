@@ -47,33 +47,17 @@ fn list_folder(root: &Path) -> Result<Vec<FsEntry>, String> {
 }
 
 fn list_volume_entries() -> Vec<FsEntry> {
-    #[cfg(windows)]
-    {
-        (b'A'..=b'Z')
-            .filter_map(|letter| {
-                let drive = format!("{}:\\", letter as char);
-                let path = PathBuf::from(&drive);
-                path.exists().then(|| {
-                    FsEntry::Dir(
-                        Arc::new(FolderDir {
-                            name: drive,
-                            path: path.clone(),
-                        }) as Arc<dyn DirEntry>,
-                    )
-                })
-            })
-            .collect()
-    }
-    #[cfg(not(windows))]
-    {
-        let path = PathBuf::from("/");
-        vec![FsEntry::Dir(
-            Arc::new(FolderDir {
-                name: "/".to_string(),
-                path: path.clone(),
-            }) as Arc<dyn DirEntry>,
-        )]
-    }
+    let root = if cfg!(windows) {
+        PathBuf::from("C:\\")
+    } else {
+        PathBuf::from("/")
+    };
+    vec![FsEntry::Dir(
+        Arc::new(FolderDir {
+            name: root.to_string_lossy().into_owned(),
+            path: root,
+        }) as Arc<dyn DirEntry>,
+    )]
 }
 
 impl HostBackend for crate::FolderBackend {

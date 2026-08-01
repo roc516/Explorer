@@ -8,7 +8,7 @@ pub struct Mounter;
 
 impl Mounter {
     /// Mount a block device and return its filesystem handle.
-    pub fn mount_root_dir(device: BlockDevice) -> Result<Arc<dyn MountedFs>, String> {
+    pub fn mount(device: BlockDevice) -> Result<Arc<dyn MountedFs>, String> {
         let backend = try_registry()
             .ok_or("fs backends not initialized")?
             .find_backend(&device)
