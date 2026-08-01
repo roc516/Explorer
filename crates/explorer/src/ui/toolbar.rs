@@ -168,7 +168,7 @@ impl Toolbar {
             }
             Ok(AddressTarget::File { path }) => {
                 let Some(parent_nav) =
-                    navigation_parent(&path, model.is_mount())
+                    navigation_parent(&path, true)
                 else {
                     model.set_path_error(ModelError::InvalidPath);
                     return None;

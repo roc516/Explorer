@@ -4,9 +4,9 @@ use std::sync::Arc;
 
 use explorer_core::BlockDevice;
 use explorer_core::filesystem::{
-    entry_at, is_mountable, navigation_parent, MountedFs, Mounter,
+    entry_at, is_mountable, navigation_parent, MountedFs, Mounter, try_host,
 };
-use explorer_core::{open_host_dir, DirEntry, FsEntry};
+use explorer_core::{DirEntry, FsEntry};
 
 use crate::entry::{mount_root_dir, FileEntry};
 use crate::i18n::{ids, LanguageBundle};
@@ -48,8 +48,8 @@ pub enum AddressTarget {
 pub struct ExplorerModel {
     /// Current directory handle (listable).
     current_dir: Arc<dyn DirEntry>,
-    /// Archive window mount (`None` for disk windows).
-    mount: Option<Arc<dyn MountedFs>>,
+    /// Mount backing this window (volume-root mount for disk windows, archive mount otherwise).
+    mount: Arc<dyn MountedFs>,
     pub entries: Vec<FileEntry>,
     pub selected_index: Option<usize>,
     pub loading: bool,
@@ -66,10 +66,21 @@ impl ExplorerModel {
             .unwrap_or_else(|_| {
                 std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"))
             });
-        let current_dir = open_host_dir(initial).unwrap_or_else(|message| {
-            panic!("cannot open home directory: {message}")
-        });
-        Self::with_dir(current_dir, None)
+        let root = if cfg!(windows) {
+            PathBuf::from("C:\\")
+        } else {
+            PathBuf::from("/")
+        };
+        let host = try_host().expect("host backend not registered");
+        let mounted = host
+            .mount(&root)
+            .unwrap_or_else(|message| panic!("cannot mount root: {message}"));
+        let mount: Arc<dyn MountedFs> = Arc::from(mounted);
+        let current_dir = match entry_at(mount.as_ref(), &initial) {
+            Ok(FsEntry::Dir(dir)) => dir,
+            _ => mount_root_dir(mount.clone()),
+        };
+        Self::with_dir(current_dir, mount)
     }
 
     pub fn new_mounted(device: BlockDevice) -> Self {
@@ -77,10 +88,10 @@ impl ExplorerModel {
             panic!("unsupported archive: {message}")
         });
         let current_dir = mount_root_dir(mount.clone());
-        Self::with_dir(current_dir, Some(mount))
+        Self::with_dir(current_dir, mount)
     }
 
-    fn with_dir(current_dir: Arc<dyn DirEntry>, mount: Option<Arc<dyn MountedFs>>) -> Self {
+    fn with_dir(current_dir: Arc<dyn DirEntry>, mount: Arc<dyn MountedFs>) -> Self {
         let bundle = LanguageBundle::new(crate::i18n::Locale::En);
 
         Self {
@@ -107,36 +118,17 @@ impl ExplorerModel {
         self.current_dir.path()
     }
 
-    pub fn mount(&self) -> Option<&Arc<dyn MountedFs>> {
-        self.mount.as_ref()
+    pub fn mount(&self) -> &Arc<dyn MountedFs> {
+        &self.mount
     }
 
     pub fn display_path(&self) -> String {
-        if self.is_mount() {
-            self.mount_display_path()
-        } else {
-            self.current_path().display().to_string()
-        }
+        let p = self.current_path().display().to_string();
+        if p.is_empty() { "/".to_string() } else { p }
     }
 
     pub fn internal_display(&self) -> String {
-        if self.is_mount() {
-            self.mount_display_path()
-        } else {
-            self.display_path()
-        }
-    }
-
-    fn mount_display_path(&self) -> String {
-        if self.current_path().as_os_str().is_empty() {
-            "/".to_string()
-        } else {
-            format!("/{}", self.current_path().display())
-        }
-    }
-
-    pub fn is_mount(&self) -> bool {
-        self.mount.is_some()
+        self.display_path()
     }
 
     pub fn set_locale(&mut self, locale: crate::i18n::Locale) {
@@ -162,7 +154,7 @@ impl ExplorerModel {
     }
 
     pub fn can_go_up(&self) -> bool {
-        navigation_parent(self.current_path(), self.is_mount()).is_some()
+        navigation_parent(self.current_path(), true).is_some()
     }
 
     pub fn begin_load(&mut self) {
@@ -174,60 +166,39 @@ impl ExplorerModel {
     /// Parse address-bar input to an in-window navigation path.
     pub fn parse_address(&self, input: &str) -> PathBuf {
         let trimmed = input.trim();
-        if self.mount.is_some() {
-            Mounter::parse_internal_path(trimmed)
-        } else {
-            let path = PathBuf::from(trimmed);
-            if path.is_absolute() {
-                path
-            } else {
-                self.current_path().join(path)
-            }
+        if trimmed.is_empty() {
+            return PathBuf::new();
         }
+        let path = PathBuf::from(trimmed);
+        if path.has_root() { path } else { self.current_path().join(path) }
     }
 
     /// Resolve address-bar input to a directory handle or file path.
     pub fn resolve_address(&self, input: &str) -> Result<AddressTarget, ModelError> {
         let path = self.parse_address(input);
-        if let Some(mount) = &self.mount {
-            if path.as_os_str().is_empty() {
-                return Ok(AddressTarget::Directory(mount_root_dir(mount.clone())));
-            }
-            match entry_at(mount.as_ref(), &path) {
-                Ok(FsEntry::Dir(dir)) => Ok(AddressTarget::Directory(dir)),
-                Ok(FsEntry::File(file)) => Ok(AddressTarget::File { path: file.path().to_path_buf() }),
-                Ok(FsEntry::Volume(_)) => Err(ModelError::InvalidPath),
-                Err(_) => Err(ModelError::InvalidPath),
-            }
-        } else if path.is_dir() {
-            open_host_dir(path)
-                .map(AddressTarget::Directory)
-                .map_err(ModelError::External)
-        } else if path.is_file() {
-            Ok(AddressTarget::File { path })
-        } else {
-            Err(ModelError::InvalidPath)
+        let mount = &self.mount;
+        if path.as_os_str().is_empty() {
+            return Ok(AddressTarget::Directory(mount_root_dir(mount.clone())));
+        }
+        match entry_at(mount.as_ref(), &path) {
+            Ok(FsEntry::Dir(dir)) => Ok(AddressTarget::Directory(dir)),
+            Ok(FsEntry::File(file)) => Ok(AddressTarget::File { path: file.path().to_path_buf() }),
+            Ok(FsEntry::Volume(_)) => Err(ModelError::InvalidPath),
+            Err(_) => Err(ModelError::InvalidPath),
         }
     }
 
     /// Resolve a navigation path to a [`DirEntry`] in this window.
     pub fn resolve_dir(&self, path: PathBuf) -> Result<Arc<dyn DirEntry>, ModelError> {
-        if let Some(mount) = &self.mount {
-            if path.as_os_str().is_empty() {
-                return Ok(mount_root_dir(mount.clone()));
-            }
-            match entry_at(mount.as_ref(), &path) {
-                Ok(FsEntry::Dir(dir)) => Ok(dir),
-                Ok(FsEntry::File(_)) => Err(ModelError::NotDirectory),
-                Ok(FsEntry::Volume(_)) => Err(ModelError::NotDirectory),
-                Err(_) => Err(ModelError::InvalidPath),
-            }
-        } else if !path.exists() {
-            Err(ModelError::InvalidPath)
-        } else if !path.is_dir() {
-            Err(ModelError::NotDirectory)
-        } else {
-            open_host_dir(path).map_err(ModelError::External)
+        let mount = &self.mount;
+        if path.as_os_str().is_empty() {
+            return Ok(mount_root_dir(mount.clone()));
+        }
+        match entry_at(mount.as_ref(), &path) {
+            Ok(FsEntry::Dir(dir)) => Ok(dir),
+            Ok(FsEntry::File(_)) => Err(ModelError::NotDirectory),
+            Ok(FsEntry::Volume(_)) => Err(ModelError::NotDirectory),
+            Err(_) => Err(ModelError::InvalidPath),
         }
     }
 
@@ -252,7 +223,7 @@ impl ExplorerModel {
     }
 
     pub fn go_up(&mut self) -> Option<Arc<dyn DirEntry>> {
-        let parent = navigation_parent(self.current_path(), self.is_mount())?;
+        let parent = navigation_parent(self.current_path(), true)?;
         self.navigate(parent)
     }
 
@@ -305,16 +276,11 @@ impl ExplorerModel {
 
     fn as_mountable(&self, entry: &FileEntry) -> Option<BlockDevice> {
         let file = entry.as_file()?;
-        if self.mount.is_some() {
-            let mut reader = file.open().ok()?;
-            let mut data = Vec::new();
-            reader.read_to_end(&mut data).ok()?;
-            let device = BlockDevice::from_bytes(file.name().to_string(), data);
-            is_mountable(&device).then_some(device)
-        } else {
-            let device = BlockDevice::open_host(file.path().to_path_buf()).ok()?;
-            is_mountable(&device).then_some(device)
-        }
+        let mut reader = file.open().ok()?;
+        let mut data = Vec::new();
+        reader.read_to_end(&mut data).ok()?;
+        let device = BlockDevice::from_bytes(file.name().to_string(), data);
+        is_mountable(&device).then_some(device)
     }
 
     pub fn on_directory_loaded(

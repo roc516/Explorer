@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use explorer_core::BlockDevice;
-use explorer_core::filesystem::{list_drives, Mounter};
+use explorer_core::filesystem::{Mounter, MountedFs, try_host};
 use explorer_core::{DirEntry, FsEntry};
 
 use crate::entry::mount_root_dir;
@@ -44,20 +44,21 @@ pub struct DirectoryTree {
     children: HashMap<PathBuf, Vec<TreeNode>>,
     loading: BTreeSet<PathBuf>,
     selected: Option<PathBuf>,
-    /// When true, [`Self::refresh`] re-lists host drives as roots.
-    host_roots: bool,
 }
 
 impl DirectoryTree {
     pub fn new() -> Self {
-        let roots = list_drives()
-            .into_iter()
-            .map(TreeNode::from_dir)
-            .collect();
-
-        let mut tree = Self::with_roots(roots);
-        tree.host_roots = true;
-        tree
+        let root = if cfg!(windows) {
+            PathBuf::from("C:\\")
+        } else {
+            PathBuf::from("/")
+        };
+        let host = try_host().expect("host backend not registered");
+        let mounted = host
+            .mount(&root)
+            .unwrap_or_else(|message| panic!("cannot mount root: {message}"));
+        let mount: Arc<dyn MountedFs> = Arc::from(mounted);
+        Self::with_roots(vec![TreeNode::from_dir(mount_root_dir(mount))])
     }
 
     pub fn for_mounted(device: BlockDevice) -> Self {
@@ -74,7 +75,6 @@ impl DirectoryTree {
             children: HashMap::new(),
             loading: BTreeSet::new(),
             selected: None,
-            host_roots: false,
         }
     }
 
@@ -125,24 +125,8 @@ impl DirectoryTree {
 
     /// Drop cached listings and reload expanded folders (and host roots when applicable).
     pub fn refresh(&mut self) -> Option<Arc<dyn DirEntry>> {
-        let expanded = self.expanded.clone();
-        let selected = self.selected.clone();
-        let host_roots = self.host_roots;
-
-        if host_roots {
-            let roots = list_drives()
-                .into_iter()
-                .map(TreeNode::from_dir)
-                .collect();
-            *self = Self::with_roots(roots);
-            self.host_roots = true;
-            self.expanded = expanded;
-            self.selected = selected;
-        } else {
-            self.children.clear();
-            self.loading.clear();
-        }
-
+        self.children.clear();
+        self.loading.clear();
         self.next_pending_load()
     }
 
@@ -221,7 +205,7 @@ impl DirectoryTree {
     }
 
     fn is_expandable(&self, path: &Path) -> bool {
-        if self.loading.contains(path) || self.expanded.contains(path) {
+        if self.loading.contains(path) {
             return true;
         }
 

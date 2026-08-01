@@ -1,13 +1,10 @@
 use std::io::{Read, Seek};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use crate::filesystem::backends::{host_backend, MountedFs};
-use crate::filesystem::file_name_of;
-
 /// Reader that supports both sequential reads and seeking.
-pub trait SeekRead: Read + Seek + Send {}
+pub trait SeekRead: Read + Seek {}
 
 impl<T: Read + Seek + Send> SeekRead for T {}
 
@@ -25,49 +22,6 @@ impl std::fmt::Debug for dyn DirEntry {
             .field("path", &self.path())
             .finish_non_exhaustive()
     }
-}
-
-struct MountedDir {
-    name: String,
-    path: PathBuf,
-    mounted: Arc<dyn MountedFs>,
-}
-
-impl DirEntry for MountedDir {
-    fn name(&self) -> &str {
-        &self.name
-    }
-
-    fn path(&self) -> &Path {
-        &self.path
-    }
-
-    fn list(&self) -> Result<Vec<FsEntry>, String> {
-        self.mounted.list()
-    }
-}
-
-/// Open a host directory as a [`DirEntry`].
-pub fn open_host_dir(path: impl Into<PathBuf>) -> Result<Arc<dyn DirEntry>, String> {
-    let path = path.into();
-    let host = host_backend();
-    if !host.matches(&path) {
-        return Err("not-a-directory".to_string());
-    }
-    let meta = std::fs::metadata(&path).map_err(|err| err.to_string())?;
-    if !meta.is_dir() {
-        return Err("not-a-directory".to_string());
-    }
-    let name = {
-        let name = file_name_of(&path);
-        if name.is_empty() {
-            path.display().to_string()
-        } else {
-            name
-        }
-    };
-    let mounted: Arc<dyn MountedFs> = Arc::from(host.mount(&path)?);
-    Ok(Arc::new(MountedDir { name, path, mounted }))
 }
 
 /// A file entry — name, metadata, and a backend-specific `open`.

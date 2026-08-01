@@ -75,31 +75,3 @@ pub fn is_mountable(device: &BlockDevice) -> bool {
         .and_then(|registry| registry.find_backend(device))
         .is_some()
 }
-
-pub fn list_drives() -> Vec<std::sync::Arc<dyn crate::entry::DirEntry>> {
-    use std::path::Path;
-
-    use crate::entry::FsEntry;
-
-    let Some(host) = try_host() else {
-        return Vec::new();
-    };
-    let roots = Path::new("");
-    if !host.matches(roots) {
-        return Vec::new();
-    }
-    let Ok(device) = host.mount(roots) else {
-        return Vec::new();
-    };
-    let Ok(entries) = device.list() else {
-        return Vec::new();
-    };
-    entries
-        .into_iter()
-        .filter_map(|entry| match entry {
-            FsEntry::Dir(dir) => Some(dir),
-            FsEntry::File(_) => None,
-            FsEntry::Volume(_) => None,
-        })
-        .collect()
-}

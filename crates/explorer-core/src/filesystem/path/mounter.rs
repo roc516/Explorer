@@ -1,4 +1,3 @@
-use std::path::{Component, PathBuf};
 use std::sync::Arc;
 
 use crate::device::BlockDevice;
@@ -16,20 +15,5 @@ impl Mounter {
 
         let mounted = backend.mount(&device)?;
         Ok(Arc::from(mounted))
-    }
-
-    /// Parse an address-bar string into a mount-internal navigation path.
-    pub fn parse_internal_path(input: &str) -> PathBuf {
-        let mut result = PathBuf::new();
-        for component in std::path::Path::new(input).components() {
-            match component {
-                Component::Normal(name) => result.push(name),
-                Component::ParentDir => {
-                    result.pop();
-                }
-                _ => {}
-            }
-        }
-        result
     }
 }
