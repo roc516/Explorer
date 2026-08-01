@@ -70,15 +70,6 @@ pub fn open_host_dir(path: impl Into<PathBuf>) -> Result<Arc<dyn DirEntry>, Stri
     Ok(Arc::new(MountedDir { name, path, mounted }))
 }
 
-/// Wrap a cached [`MountedFs`] as a mount-root [`DirEntry`].
-pub(crate) fn mount_root_dir(name: String, mounted: Arc<dyn MountedFs>) -> Arc<dyn DirEntry> {
-    Arc::new(MountedDir {
-        name,
-        path: PathBuf::new(),
-        mounted,
-    })
-}
-
 /// A file entry — name, metadata, and a backend-specific `open`.
 pub trait FileEntry: Send + Sync {
     fn name(&self) -> &str;

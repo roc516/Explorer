@@ -7,7 +7,7 @@ pub use backends::{
     HostBackend, MountedFs,
 };
 pub use path::{
-    file_name_of, navigation_parent, MountedRoot, Mounter,
+    file_name_of, navigation_parent, Mounter,
 };
 
 pub use backends::list_drives;

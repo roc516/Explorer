@@ -1,7 +1,8 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::SystemTime;
 
+use explorer_core::filesystem::MountedFs;
 use explorer_core::{DirEntry, FileEntry as CoreFileEntry, FsEntry};
 
 use crate::i18n::{ids, LanguageBundle};
@@ -106,4 +107,35 @@ impl FileEntry {
             .map(|time| bundle.format_datetime(time))
             .unwrap_or_default()
     }
+}
+
+/// App-layer adapter that wraps a [`MountedFs`] as the root [`DirEntry`]
+/// (name = "/", path = ""). Core no longer constructs this; the app owns it.
+pub(crate) struct MountRoot {
+    name: String,
+    path: PathBuf,
+    mounted: Arc<dyn MountedFs>,
+}
+
+impl DirEntry for MountRoot {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+
+    fn list(&self) -> Result<Vec<FsEntry>, String> {
+        self.mounted.list()
+    }
+}
+
+/// Wrap a mounted filesystem as the root directory entry.
+pub(crate) fn mount_root_dir(mounted: Arc<dyn MountedFs>) -> Arc<dyn DirEntry> {
+    Arc::new(MountRoot {
+        name: "/".to_string(),
+        path: PathBuf::new(),
+        mounted,
+    })
 }

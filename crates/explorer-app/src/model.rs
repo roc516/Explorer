@@ -4,11 +4,11 @@ use std::sync::Arc;
 
 use explorer_core::BlockDevice;
 use explorer_core::filesystem::{
-    entry_at, is_mountable, navigation_parent, MountedRoot, Mounter,
+    entry_at, is_mountable, navigation_parent, MountedFs, Mounter,
 };
 use explorer_core::{open_host_dir, DirEntry, FsEntry};
 
-use crate::entry::FileEntry;
+use crate::entry::{mount_root_dir, FileEntry};
 use crate::i18n::{ids, LanguageBundle};
 use crate::preview;
 
@@ -49,7 +49,7 @@ pub struct ExplorerModel {
     /// Current directory handle (listable).
     current_dir: Arc<dyn DirEntry>,
     /// Archive window mount (`None` for disk windows).
-    mount: Option<MountedRoot>,
+    mount: Option<Arc<dyn MountedFs>>,
     pub entries: Vec<FileEntry>,
     pub selected_index: Option<usize>,
     pub loading: bool,
@@ -76,11 +76,11 @@ impl ExplorerModel {
         let mount = Mounter::mount_root_dir(device).unwrap_or_else(|message| {
             panic!("unsupported archive: {message}")
         });
-        let current_dir = mount.dir.clone();
+        let current_dir = mount_root_dir(mount.clone());
         Self::with_dir(current_dir, Some(mount))
     }
 
-    fn with_dir(current_dir: Arc<dyn DirEntry>, mount: Option<MountedRoot>) -> Self {
+    fn with_dir(current_dir: Arc<dyn DirEntry>, mount: Option<Arc<dyn MountedFs>>) -> Self {
         let bundle = LanguageBundle::new(crate::i18n::Locale::En);
 
         Self {
@@ -107,7 +107,7 @@ impl ExplorerModel {
         self.current_dir.path()
     }
 
-    pub fn mount(&self) -> Option<&MountedRoot> {
+    pub fn mount(&self) -> Option<&Arc<dyn MountedFs>> {
         self.mount.as_ref()
     }
 
@@ -191,9 +191,9 @@ impl ExplorerModel {
         let path = self.parse_address(input);
         if let Some(mount) = &self.mount {
             if path.as_os_str().is_empty() {
-                return Ok(AddressTarget::Directory(mount.dir.clone()));
+                return Ok(AddressTarget::Directory(mount_root_dir(mount.clone())));
             }
-            match entry_at(mount.device.as_ref(), &path) {
+            match entry_at(mount.as_ref(), &path) {
                 Ok(FsEntry::Dir(dir)) => Ok(AddressTarget::Directory(dir)),
                 Ok(FsEntry::File(file)) => Ok(AddressTarget::File { path: file.path().to_path_buf() }),
                 Ok(FsEntry::Volume(_)) => Err(ModelError::InvalidPath),
@@ -214,9 +214,9 @@ impl ExplorerModel {
     pub fn resolve_dir(&self, path: PathBuf) -> Result<Arc<dyn DirEntry>, ModelError> {
         if let Some(mount) = &self.mount {
             if path.as_os_str().is_empty() {
-                return Ok(mount.dir.clone());
+                return Ok(mount_root_dir(mount.clone()));
             }
-            match entry_at(mount.device.as_ref(), &path) {
+            match entry_at(mount.as_ref(), &path) {
                 Ok(FsEntry::Dir(dir)) => Ok(dir),
                 Ok(FsEntry::File(_)) => Err(ModelError::NotDirectory),
                 Ok(FsEntry::Volume(_)) => Err(ModelError::NotDirectory),

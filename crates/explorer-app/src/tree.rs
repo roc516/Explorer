@@ -6,6 +6,8 @@ use explorer_core::BlockDevice;
 use explorer_core::filesystem::{list_drives, Mounter};
 use explorer_core::{DirEntry, FsEntry};
 
+use crate::entry::mount_root_dir;
+
 #[derive(Debug, Clone)]
 pub struct TreeNode {
     entry: Arc<dyn DirEntry>,
@@ -62,7 +64,7 @@ impl DirectoryTree {
         let mount = Mounter::mount_root_dir(device).unwrap_or_else(|message| {
             panic!("unsupported archive: {message}")
         });
-        Self::with_roots(vec![TreeNode::from_dir(mount.dir)])
+        Self::with_roots(vec![TreeNode::from_dir(mount_root_dir(mount))])
     }
 
     fn with_roots(roots: Vec<TreeNode>) -> Self {
