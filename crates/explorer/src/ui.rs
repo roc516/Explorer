@@ -1,5 +1,6 @@
 pub mod dialog;
 pub mod directory_tree;
+pub mod explorer;
 pub mod file_list;
 pub mod loading;
 pub mod preview;
