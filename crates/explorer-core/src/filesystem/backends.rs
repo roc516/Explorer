@@ -1,16 +1,12 @@
 mod backend;
-mod device;
 mod fs;
-mod host;
-mod kinds;
 
 use std::sync::OnceLock;
 
-pub use backend::FsBackend;
-pub use device::{BlockDevice, BlockIo};
+use crate::device::BlockDevice;
+
+pub use backend::{FsBackend, HostBackend};
 pub use fs::{entry_at, MountedDevice};
-pub use host::HostBackend;
-pub use kinds::EntryKind;
 
 /// Registry of mountable backends (archives, etc.). Host FS is separate.
 pub struct FsRegistry {

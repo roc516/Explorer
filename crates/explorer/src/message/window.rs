@@ -1,4 +1,4 @@
-use explorer_core::filesystem::BlockDevice;
+use explorer_core::BlockDevice;
 
 use crate::message::input;
 use crate::ui::{directory_tree, file_list, preview, toolbar};

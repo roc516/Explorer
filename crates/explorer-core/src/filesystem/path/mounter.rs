@@ -2,7 +2,8 @@ use std::path::{Component, PathBuf};
 use std::sync::Arc;
 
 use crate::entry::{mount_root_dir, DirEntry};
-use crate::filesystem::backends::{try_registry, BlockDevice, MountedDevice};
+use crate::device::BlockDevice;
+use crate::filesystem::backends::{try_registry, MountedDevice};
 
 /// A successfully mounted archive: filesystem handle and root directory.
 #[derive(Clone)]

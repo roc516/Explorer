@@ -1,7 +1,8 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
-use explorer_core::filesystem::{list_drives, BlockDevice, Mounter};
+use explorer_core::BlockDevice;
+use explorer_core::filesystem::{list_drives, Mounter};
 use explorer_core::{DirEntry, FsEntry};
 
 #[derive(Debug, Clone)]

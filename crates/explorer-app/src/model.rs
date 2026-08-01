@@ -1,8 +1,9 @@
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use explorer_core::BlockDevice;
 use explorer_core::filesystem::{
-    entry_at, is_mountable, navigation_parent, BlockDevice, MountedRoot, Mounter,
+    entry_at, is_mountable, navigation_parent, MountedRoot, Mounter,
 };
 use explorer_core::{DirEntry, FsEntry};
 

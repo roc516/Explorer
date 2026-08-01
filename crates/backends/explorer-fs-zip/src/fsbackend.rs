@@ -3,7 +3,8 @@ use std::io::{self, Read, Seek, SeekFrom};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use explorer_core::filesystem::{BlockDevice, BlockIo, FsBackend, MountedDevice};
+use explorer_core::{BlockDevice, BlockIo};
+use explorer_core::filesystem::{FsBackend, MountedDevice};
 use explorer_core::{DirEntry, Directory, FileBytes, FileEntry as CoreFileEntry, FsEntry, SeekRead};
 use zip::ZipArchive;
 
