@@ -7,7 +7,7 @@ mod kinds;
 use std::sync::OnceLock;
 
 pub use backend::FsBackend;
-pub use device::{BlockDevice, BlockIo, DeviceId};
+pub use device::{BlockDevice, BlockIo};
 pub use fs::{entry_at, MountedDevice};
 pub use host::HostBackend;
 pub use kinds::EntryKind;

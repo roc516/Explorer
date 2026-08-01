@@ -2,7 +2,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use explorer_core::filesystem::{
-    entry_at, is_mountable, navigation_parent, BlockDevice, DeviceId, MountedRoot, Mounter,
+    entry_at, is_mountable, navigation_parent, BlockDevice, MountedRoot, Mounter,
 };
 use explorer_core::{DirEntry, FsEntry};
 
@@ -172,8 +172,8 @@ impl ExplorerModel {
     /// Parse address-bar input to an in-window navigation path.
     pub fn parse_address(&self, input: &str) -> PathBuf {
         let trimmed = input.trim();
-        if let Some(mount) = &self.mount {
-            Mounter::parse_internal_path(trimmed, &mount.id)
+        if self.mount.is_some() {
+            Mounter::parse_internal_path(trimmed)
         } else {
             let path = PathBuf::from(trimmed);
             if path.is_absolute() {
@@ -301,18 +301,11 @@ impl ExplorerModel {
 
     fn as_mountable(&self, entry: &FileEntry) -> Option<BlockDevice> {
         let file = entry.as_file()?;
-        if let Some(mount) = &self.mount {
+        if self.mount.is_some() {
             let mut reader = file.open().ok()?;
             let mut data = Vec::new();
             reader.read_to_end(&mut data).ok()?;
-            let device = BlockDevice::from_bytes(
-                DeviceId::Nested {
-                    parent: Box::new(mount.id.clone()),
-                    entry: file.path.clone(),
-                },
-                file.name.clone(),
-                data,
-            );
+            let device = BlockDevice::from_bytes(file.name.clone(), data);
             is_mountable(&device).then_some(device)
         } else {
             let device = BlockDevice::open_host(file.path.clone()).ok()?;

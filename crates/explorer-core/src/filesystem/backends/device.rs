@@ -9,43 +9,11 @@ pub trait BlockIo: Send + Sync {
     fn len(&self) -> u64;
 }
 
-/// Stable identity for caching and mounted archive roots.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum DeviceId {
-    /// Host filesystem path. Empty path = disk path (not a mount root).
-    Host(PathBuf),
-    /// An entry inside another mounted filesystem (enables nested archives).
-    Nested {
-        parent: Box<DeviceId>,
-        entry: PathBuf,
-    },
-}
-
-impl DeviceId {
-    pub fn display(&self) -> String {
-        match self {
-            DeviceId::Host(path) => path.display().to_string(),
-            DeviceId::Nested { parent, entry } => {
-                let parent = parent.display();
-                if entry.as_os_str().is_empty() {
-                    parent
-                } else if parent.is_empty() {
-                    entry.display().to_string()
-                } else {
-                    format!("{}\\{}", parent, entry.display())
-                }
-            }
-        }
-    }
-
-}
-
 /// A block device that can be mounted by a filesystem backend.
 ///
-/// Combines a stable [`DeviceId`] with random-access [`BlockIo`].
+/// Combines a display name with random-access [`BlockIo`].
 #[derive(Clone)]
 pub struct BlockDevice {
-    id: DeviceId,
     name: String,
     io: Arc<dyn BlockIo>,
 }
@@ -53,7 +21,6 @@ pub struct BlockDevice {
 impl std::fmt::Debug for BlockDevice {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BlockDevice")
-            .field("id", &self.id)
             .field("name", &self.name)
             .field("len", &self.len())
             .finish()
@@ -70,23 +37,17 @@ impl BlockDevice {
             .unwrap_or_else(|| path.display().to_string());
         let io = HostFileIo::open(&path)?;
         Ok(Self {
-            id: DeviceId::Host(path),
             name,
             io: Arc::new(io),
         })
     }
 
     /// Build a block device from in-memory bytes (e.g. a nested archive read via [`crate::entry::FileEntry`]).
-    pub fn from_bytes(id: DeviceId, name: String, data: Vec<u8>) -> Self {
+    pub fn from_bytes(name: String, data: Vec<u8>) -> Self {
         Self {
-            id,
             name,
             io: Arc::new(BytesBlockIo { data }),
         }
-    }
-
-    pub fn id(&self) -> &DeviceId {
-        &self.id
     }
 
     pub fn name(&self) -> &str {
