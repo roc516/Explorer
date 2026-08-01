@@ -75,7 +75,7 @@ impl Toolbar {
         match message {
             Message::GoUp => {
                 let action = model.go_up().map(|dir| {
-                    self.push_history(dir.path.clone());
+                    self.push_history(dir.path().to_path_buf());
                     Action::Load(dir)
                 });
                 (Task::none(), action)
@@ -112,7 +112,7 @@ impl Toolbar {
             Message::BreadcrumbNavigate(path) => {
                 self.address_editing = false;
                 let action = model.navigate(path).map(|dir| {
-                    self.push_history(dir.path.clone());
+                    self.push_history(dir.path().to_path_buf());
                     Action::Load(dir)
                 });
                 (Task::none(), action)
@@ -163,7 +163,7 @@ impl Toolbar {
             Ok(AddressTarget::Directory(dir)) => {
                 self.reveal_path = None;
                 let dir = model.navigate_dir(dir);
-                self.push_history(dir.path.clone());
+                self.push_history(dir.path().to_path_buf());
                 Some(Action::Load(dir))
             }
             Ok(AddressTarget::File { path }) => {
@@ -184,7 +184,7 @@ impl Toolbar {
 
                 self.reveal_path = Some(path);
                 model.navigate(parent_nav).map(|dir| {
-                    self.push_history(dir.path.clone());
+                    self.push_history(dir.path().to_path_buf());
                     Action::Load(dir)
                 })
             }

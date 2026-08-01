@@ -76,7 +76,7 @@ pub fn is_mountable(device: &BlockDevice) -> bool {
         .is_some()
 }
 
-pub fn list_drives() -> Vec<crate::entry::DirEntry> {
+pub fn list_drives() -> Vec<std::sync::Arc<dyn crate::entry::DirEntry>> {
     use std::path::Path;
 
     use crate::entry::FsEntry;
@@ -99,6 +99,7 @@ pub fn list_drives() -> Vec<crate::entry::DirEntry> {
         .filter_map(|entry| match entry {
             FsEntry::Dir(dir) => Some(dir),
             FsEntry::File(_) => None,
+            FsEntry::Volume(_) => None,
         })
         .collect()
 }

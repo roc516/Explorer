@@ -1,25 +1,26 @@
 use std::io::{Read, Seek, SeekFrom};
+use std::sync::Arc;
 
 use explorer_core::FileEntry;
 
 #[derive(Clone)]
 pub struct HexPreview {
     pub size: u64,
-    file: FileEntry,
+    file: Arc<dyn FileEntry>,
 }
 
 impl std::fmt::Debug for HexPreview {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HexPreview")
             .field("size", &self.size)
-            .field("name", &self.file.name)
+            .field("name", &self.file.name())
             .finish_non_exhaustive()
     }
 }
 
-pub fn load(file: &FileEntry) -> HexPreview {
+pub fn load(file: &Arc<dyn FileEntry>) -> HexPreview {
     HexPreview {
-        size: file.size,
+        size: file.size(),
         file: file.clone(),
     }
 }

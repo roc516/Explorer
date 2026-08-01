@@ -1,5 +1,6 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use explorer_core::BlockDevice;
 use explorer_core::filesystem::{list_drives, Mounter};
@@ -7,20 +8,20 @@ use explorer_core::{DirEntry, FsEntry};
 
 #[derive(Debug, Clone)]
 pub struct TreeNode {
-    entry: DirEntry,
+    entry: Arc<dyn DirEntry>,
 }
 
 impl TreeNode {
-    pub fn from_dir(entry: DirEntry) -> Self {
+    pub fn from_dir(entry: Arc<dyn DirEntry>) -> Self {
         Self { entry }
     }
 
     pub fn name(&self) -> &str {
-        &self.entry.name
+        self.entry.name()
     }
 
     pub fn path(&self) -> &Path {
-        &self.entry.path
+        self.entry.path()
     }
 }
 
@@ -82,7 +83,7 @@ impl DirectoryTree {
     }
 
     /// Expand/collapse. When expand needs a load, returns the directory to `list`.
-    pub fn toggle(&mut self, path: PathBuf) -> Option<DirEntry> {
+    pub fn toggle(&mut self, path: PathBuf) -> Option<Arc<dyn DirEntry>> {
         if self.expanded.contains(&path) {
             self.expanded.remove(&path);
             return None;
@@ -96,7 +97,7 @@ impl DirectoryTree {
         }
     }
 
-    pub fn select(&mut self, path: PathBuf) -> Option<DirEntry> {
+    pub fn select(&mut self, path: PathBuf) -> Option<Arc<dyn DirEntry>> {
         self.selected = Some(path.clone());
         self.find_entry(&path).cloned()
     }
@@ -105,7 +106,7 @@ impl DirectoryTree {
         &mut self,
         path: PathBuf,
         result: Result<Vec<TreeNode>, String>,
-    ) -> Option<DirEntry> {
+    ) -> Option<Arc<dyn DirEntry>> {
         self.loading.remove(&path);
 
         match result {
@@ -121,7 +122,7 @@ impl DirectoryTree {
     }
 
     /// Drop cached listings and reload expanded folders (and host roots when applicable).
-    pub fn refresh(&mut self) -> Option<DirEntry> {
+    pub fn refresh(&mut self) -> Option<Arc<dyn DirEntry>> {
         let expanded = self.expanded.clone();
         let selected = self.selected.clone();
         let host_roots = self.host_roots;
@@ -144,12 +145,12 @@ impl DirectoryTree {
     }
 
     /// Mark ancestors expanded and return the next directory that still needs listing.
-    pub fn sync_selection(&mut self, current: &Path) -> Option<DirEntry> {
+    pub fn sync_selection(&mut self, current: &Path) -> Option<Arc<dyn DirEntry>> {
         self.selected = Some(current.to_path_buf());
         self.next_sync_load(current)
     }
 
-    fn next_sync_load(&mut self, current: &Path) -> Option<DirEntry> {
+    fn next_sync_load(&mut self, current: &Path) -> Option<Arc<dyn DirEntry>> {
         for path in ancestors_and_self(current) {
             self.expanded.insert(path.clone());
             if self.children.contains_key(&path) || self.loading.contains(&path) {
@@ -161,7 +162,7 @@ impl DirectoryTree {
     }
 
     /// Next directory to list: toward selection first, then other expanded folders.
-    fn next_pending_load(&mut self) -> Option<DirEntry> {
+    fn next_pending_load(&mut self) -> Option<Arc<dyn DirEntry>> {
         if let Some(selected) = self.selected.clone() {
             if let Some(entry) = self.next_sync_load(selected.as_path()) {
                 return Some(entry);
@@ -181,13 +182,13 @@ impl DirectoryTree {
         None
     }
 
-    fn begin_load(&mut self, path: &Path) -> Option<DirEntry> {
+    fn begin_load(&mut self, path: &Path) -> Option<Arc<dyn DirEntry>> {
         let entry = self.find_entry(path)?.clone();
         self.loading.insert(path.to_path_buf());
         Some(entry)
     }
 
-    fn find_entry(&self, path: &Path) -> Option<&DirEntry> {
+    fn find_entry(&self, path: &Path) -> Option<&Arc<dyn DirEntry>> {
         self.roots
             .iter()
             .chain(self.children.values().flatten())
@@ -236,13 +237,14 @@ impl Default for DirectoryTree {
 }
 
 /// List directory children for the tree via the retained [`DirEntry`] handle.
-pub fn load_tree_children(dir: &DirEntry) -> Result<Vec<TreeNode>, String> {
+pub fn load_tree_children(dir: &Arc<dyn DirEntry>) -> Result<Vec<TreeNode>, String> {
     Ok(dir
         .list()?
         .into_iter()
         .filter_map(|entry| match entry {
             FsEntry::Dir(d) => Some(TreeNode::from_dir(d)),
             FsEntry::File(_) => None,
+            FsEntry::Volume(_) => None,
         })
         .collect())
 }

@@ -1,6 +1,7 @@
 mod icons;
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use explorer_core::{BlockDevice, DirEntry};
 use explorer_app::{load_tree_children, DirectoryTree as DirectoryTreeState, TreeNode, TreeRow};
@@ -25,7 +26,7 @@ const ICON_WIDTH: f32 = 18.0;
 
 #[derive(Debug, Clone)]
 pub enum Action {
-    Navigate(DirEntry),
+    Navigate(Arc<dyn DirEntry>),
 }
 
 pub struct DirectoryTree {
@@ -117,8 +118,8 @@ impl Default for DirectoryTree {
     }
 }
 
-fn load_children_task(dir: DirEntry) -> Task<Message> {
-    let nav = dir.path.clone();
+fn load_children_task(dir: Arc<dyn DirEntry>) -> Task<Message> {
+    let nav = dir.path().to_path_buf();
     Task::perform(
         async move { load_tree_children(&dir) },
         move |result| Message::ChildrenLoaded(nav, result),

@@ -38,8 +38,9 @@ pub struct PreviewState {
 impl PreviewState {
     pub fn opening(source: FsEntry) -> Self {
         let name = match &source {
-            FsEntry::File(file) => file.name.clone(),
-            FsEntry::Dir(dir) => dir.name.clone(),
+            FsEntry::File(file) => file.name().to_string(),
+            FsEntry::Dir(dir) => dir.name().to_string(),
+            FsEntry::Volume(v) => v.name().to_string(),
         };
         Self {
             source,

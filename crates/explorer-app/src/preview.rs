@@ -42,13 +42,13 @@ pub fn load_preview(entry: &FsEntry) -> Result<PreviewFile, String> {
     let FsEntry::File(file) = entry else {
         return Err("preview-not-file".to_string());
     };
-    let name = file.name.clone();
+    let name = file.name().to_string();
     if name.is_empty() {
         return Err("preview-not-file".to_string());
     }
 
     let extension = extension_of(&name);
-    let size = file.size;
+    let size = file.size();
 
     let kind = match extension.as_deref() {
         Some(ext) if text_preview::is_extension(ext) => {
@@ -81,15 +81,15 @@ pub fn open_with_system(entry: &FsEntry) -> Result<(), String> {
         return Err("preview-not-file".to_string());
     };
 
-    let path = if file.path.is_absolute() {
-        file.path.clone()
+    let path = if file.path().is_absolute() {
+        file.path().to_path_buf()
     } else {
         let temp_dir = std::env::temp_dir().join("explorer-archive-preview");
         std::fs::create_dir_all(&temp_dir).map_err(|err| err.to_string())?;
-        let file_name = if file.name.is_empty() {
+        let file_name = if file.name().is_empty() {
             "preview.bin".to_string()
         } else {
-            file.name.clone()
+            file.name().to_string()
         };
         let output = temp_dir.join(file_name);
         let mut reader = file.open()?;

@@ -30,8 +30,9 @@ pub fn entry_at(root: &dyn MountedFs, path: &Path) -> Result<FsEntry, String> {
         let entry = entries
             .into_iter()
             .find(|entry| match entry {
-                FsEntry::Dir(dir) => dir.name == *part,
-                FsEntry::File(file) => file.name == *part,
+                FsEntry::Dir(dir) => dir.name() == *part,
+                FsEntry::File(file) => file.name() == *part,
+                FsEntry::Volume(v) => v.name() == *part,
             })
             .ok_or_else(|| "entry-not-found".to_string())?;
 
@@ -41,7 +42,7 @@ pub fn entry_at(root: &dyn MountedFs, path: &Path) -> Result<FsEntry, String> {
 
         match entry {
             FsEntry::Dir(dir) => entries = dir.list()?,
-            FsEntry::File(_) => return Err("not-a-directory".to_string()),
+            FsEntry::File(_) | FsEntry::Volume(_) => return Err("not-a-directory".to_string()),
         }
     }
 

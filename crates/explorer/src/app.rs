@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use explorer_core::BlockDevice;
 use explorer_app::{
@@ -333,7 +334,7 @@ impl Explorer {
         stack(layers).width(Fill).height(Fill).into()
     }
 
-    fn load_directory(&self, dir: explorer_core::DirEntry) -> Task<window_msg::Message> {
+    fn load_directory(&self, dir: Arc<dyn explorer_core::DirEntry>) -> Task<window_msg::Message> {
         file_list::load_directory_from_dir(dir).map(window_msg::Message::FileList)
     }
 
@@ -543,7 +544,7 @@ impl Explorer {
 
         if let Some(TreeAction::Navigate(dir)) = action {
             let dir = self.model.navigate_dir(dir);
-            self.toolbar.push_history(dir.path.clone());
+            self.toolbar.push_history(dir.path().to_path_buf());
             tasks.push(self.load_directory(dir));
         }
 

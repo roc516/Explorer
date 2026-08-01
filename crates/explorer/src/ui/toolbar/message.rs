@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use explorer_core::DirEntry;
 
 #[derive(Debug, Clone)]
@@ -14,5 +16,5 @@ pub enum Message {
 
 #[derive(Debug, Clone)]
 pub enum Action {
-    Load(DirEntry),
+    Load(Arc<dyn DirEntry>),
 }

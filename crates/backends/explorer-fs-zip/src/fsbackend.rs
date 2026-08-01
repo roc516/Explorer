@@ -1,11 +1,12 @@
 use std::collections::BTreeSet;
 use std::io::{self, Read, Seek, SeekFrom};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 
 use explorer_core::{BlockDevice, BlockIo};
 use explorer_core::filesystem::{FsBackend, MountedFs};
-use explorer_core::{DirEntry, Directory, FileBytes, FileEntry as CoreFileEntry, FsEntry, SeekRead};
+use explorer_core::{DirEntry, FileEntry, FsEntry, SeekRead};
 use zip::ZipArchive;
 
 use crate::path::{join_dir_name, strip_prefix, zip_prefix};
@@ -56,12 +57,31 @@ impl Seek for BlockReader {
 }
 
 struct ZipFileBytes {
+    name: String,
+    path: PathBuf,
+    size: u64,
+    modified: Option<SystemTime>,
     archive: Arc<Mutex<ZipArchive<BlockReader>>>,
     index: usize,
-    size: u64,
 }
 
-impl FileBytes for ZipFileBytes {
+impl FileEntry for ZipFileBytes {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+
+    fn size(&self) -> u64 {
+        self.size
+    }
+
+    fn modified(&self) -> Option<SystemTime> {
+        self.modified
+    }
+
     fn open(&self) -> Result<Box<dyn SeekRead>, String> {
         Ok(Box::new(self.seek_reader()))
     }
@@ -166,8 +186,10 @@ pub struct ZipFs {
     archive: Arc<Mutex<ZipArchive<BlockReader>>>,
 }
 
-/// A directory inside a zip — listed via [`Directory`], not [`MountedFs`].
+/// A directory inside a zip — listed via [`DirEntry`], not [`MountedFs`].
 struct ZipDir {
+    name: String,
+    path: PathBuf,
     entries: Arc<Vec<ZipEntryRecord>>,
     archive: Arc<Mutex<ZipArchive<BlockReader>>>,
     dir: String,
@@ -218,17 +240,14 @@ fn read_directory(
 
         let parts: Vec<&str> = relative.split('/').collect();
         if parts.len() == 1 {
-            files.push(FsEntry::File(CoreFileEntry::new(
-                parts[0].to_string(),
-                join_dir_name(dir, parts[0]),
-                entry.size,
-                None,
-                Arc::new(ZipFileBytes {
-                    archive: archive.clone(),
-                    index: entry.index,
-                    size: entry.size,
-                }),
-            )));
+            files.push(FsEntry::File(Arc::new(ZipFileBytes {
+                name: parts[0].to_string(),
+                path: join_dir_name(dir, parts[0]),
+                size: entry.size,
+                modified: None,
+                archive: archive.clone(),
+                index: entry.index,
+            })));
         } else {
             directories.insert(parts[0].to_string());
         }
@@ -242,15 +261,15 @@ fn read_directory(
             } else {
                 format!("{dir}/{name}")
             };
-            FsEntry::Dir(DirEntry::new(
-                name.clone(),
-                join_dir_name(dir, &name),
+            FsEntry::Dir(
                 Arc::new(ZipDir {
+                    name: name.clone(),
+                    path: join_dir_name(dir, &name),
                     entries: entries.clone(),
                     archive: archive.clone(),
                     dir: child_dir,
-                }),
-            ))
+                }) as Arc<dyn DirEntry>,
+            )
         })
         .collect();
 
@@ -258,13 +277,15 @@ fn read_directory(
     items.sort_by(|left, right| {
         let left_is_dir = matches!(left, FsEntry::Dir(_));
         let right_is_dir = matches!(right, FsEntry::Dir(_));
-        let left_name = match left {
-            FsEntry::Dir(d) => &d.name,
-            FsEntry::File(f) => &f.name,
+        let left_name: &str = match left {
+            FsEntry::Dir(d) => d.name(),
+            FsEntry::File(f) => f.name(),
+            FsEntry::Volume(v) => v.name(),
         };
-        let right_name = match right {
-            FsEntry::Dir(d) => &d.name,
-            FsEntry::File(f) => &f.name,
+        let right_name: &str = match right {
+            FsEntry::Dir(d) => d.name(),
+            FsEntry::File(f) => f.name(),
+            FsEntry::Volume(v) => v.name(),
         };
         match (left_is_dir, right_is_dir) {
             (true, false) => std::cmp::Ordering::Less,
@@ -282,7 +303,15 @@ impl MountedFs for ZipFs {
     }
 }
 
-impl Directory for ZipDir {
+impl DirEntry for ZipDir {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+
     fn list(&self) -> Result<Vec<FsEntry>, String> {
         read_directory(&self.entries, &self.archive, &self.dir)
     }

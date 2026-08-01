@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use explorer_core::{BlockDevice, DirEntry, FsEntry};
 use explorer_app::FileEntry;
 
@@ -7,7 +9,7 @@ use super::columns::Column;
 pub enum Message {
     EntryClicked(usize),
     EntryDoubleClicked(usize),
-    DirectoryLoaded(Result<(DirEntry, Vec<FileEntry>), String>),
+    DirectoryLoaded(Result<(Arc<dyn DirEntry>, Vec<FileEntry>), String>),
     EntriesSorted {
         id: u64,
         entries: Vec<FileEntry>,

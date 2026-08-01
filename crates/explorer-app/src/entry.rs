@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::Arc;
 use std::time::SystemTime;
 
 use explorer_core::{DirEntry, FileEntry as CoreFileEntry, FsEntry};
@@ -18,15 +19,17 @@ impl FileEntry {
 
     pub fn path(&self) -> &Path {
         match &self.inner {
-            FsEntry::Dir(d) => d.path.as_path(),
-            FsEntry::File(f) => f.path.as_path(),
+            FsEntry::Dir(d) => d.path(),
+            FsEntry::File(f) => f.path(),
+            FsEntry::Volume(_) => Path::new(""),
         }
     }
 
     pub fn name(&self) -> &str {
         match &self.inner {
-            FsEntry::Dir(d) => d.name.as_str(),
-            FsEntry::File(f) => f.name.as_str(),
+            FsEntry::Dir(d) => d.name(),
+            FsEntry::File(f) => f.name(),
+            FsEntry::Volume(v) => v.name(),
         }
     }
 
@@ -34,31 +37,35 @@ impl FileEntry {
         matches!(self.inner, FsEntry::Dir(_))
     }
 
-    pub fn as_dir(&self) -> Option<&DirEntry> {
+    pub fn as_dir(&self) -> Option<&Arc<dyn DirEntry>> {
         match &self.inner {
             FsEntry::Dir(d) => Some(d),
             FsEntry::File(_) => None,
+            FsEntry::Volume(_) => None,
         }
     }
 
     pub fn size(&self) -> u64 {
         match &self.inner {
-            FsEntry::File(f) => f.size,
+            FsEntry::File(f) => f.size(),
             FsEntry::Dir(_) => 0,
+            FsEntry::Volume(_) => 0,
         }
     }
 
     pub fn modified(&self) -> Option<SystemTime> {
         match &self.inner {
-            FsEntry::File(f) => f.modified,
+            FsEntry::File(f) => f.modified(),
             FsEntry::Dir(_) => None,
+            FsEntry::Volume(_) => None,
         }
     }
 
-    pub fn as_file(&self) -> Option<&CoreFileEntry> {
+    pub fn as_file(&self) -> Option<Arc<dyn CoreFileEntry>> {
         match &self.inner {
-            FsEntry::File(f) => Some(f),
+            FsEntry::File(f) => Some(f.clone()),
             FsEntry::Dir(_) => None,
+            FsEntry::Volume(_) => None,
         }
     }
 

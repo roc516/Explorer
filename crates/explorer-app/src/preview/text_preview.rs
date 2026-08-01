@@ -1,4 +1,5 @@
 use std::io::{Read, Seek, SeekFrom};
+use std::sync::Arc;
 
 use encoding_rs::{GBK, UTF_16BE, UTF_16LE, WINDOWS_1252};
 use explorer_core::FileEntry;
@@ -55,7 +56,7 @@ pub struct TextPreview {
     pub size: u64,
     /// Encoding detected from a file-prefix sample (Auto resolves to this).
     pub resolved_encoding: TextEncoding,
-    file: FileEntry,
+    file: Arc<dyn FileEntry>,
 }
 
 impl std::fmt::Debug for TextPreview {
@@ -63,7 +64,7 @@ impl std::fmt::Debug for TextPreview {
         f.debug_struct("TextPreview")
             .field("size", &self.size)
             .field("resolved_encoding", &self.resolved_encoding)
-            .field("name", &self.file.name)
+            .field("name", &self.file.name())
             .finish_non_exhaustive()
     }
 }
@@ -115,10 +116,10 @@ pub fn is_extension(ext: &str) -> bool {
     )
 }
 
-pub fn load(file: &FileEntry) -> Result<TextPreview, String> {
-    let resolved_encoding = detect_from_file(file)?;
+pub fn load(file: &Arc<dyn FileEntry>) -> Result<TextPreview, String> {
+    let resolved_encoding = detect_from_file(&**file)?;
     Ok(TextPreview {
-        size: file.size,
+        size: file.size(),
         resolved_encoding,
         file: file.clone(),
     })
@@ -198,12 +199,12 @@ impl TextPreview {
     }
 }
 
-fn detect_from_file(file: &FileEntry) -> Result<TextEncoding, String> {
-    if file.size == 0 {
+fn detect_from_file(file: &dyn FileEntry) -> Result<TextEncoding, String> {
+    if file.size() == 0 {
         return Ok(TextEncoding::Utf8);
     }
     let mut reader = file.open()?;
-    let n = (file.size as usize).min(DETECT_PREFIX);
+    let n = (file.size() as usize).min(DETECT_PREFIX);
     let bytes = read_exact_up_to(&mut *reader, n)?;
     Ok(detect_encoding(&bytes))
 }

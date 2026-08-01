@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use explorer_core::DirEntry;
 use explorer_app::FileEntry;
 use iced::Task;
@@ -5,7 +7,7 @@ use iced::Task;
 use super::message::Message;
 
 /// Load a directory listing via a retained [`DirEntry`] handle.
-pub fn load_directory_from_dir(dir: DirEntry) -> Task<Message> {
+pub fn load_directory_from_dir(dir: Arc<dyn DirEntry>) -> Task<Message> {
     Task::perform(
         async move {
             dir.list().map(|entries| {

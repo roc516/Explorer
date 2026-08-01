@@ -96,7 +96,7 @@ impl FileList {
                 let action = model.open_entry(index);
                 let (task, file_action) = match action {
                     Some(explorer_app::OpenEntryAction::Navigate(dir)) => {
-                        let path = dir.path.clone();
+                        let path = dir.path().to_path_buf();
                         (
                             load_directory_from_dir(dir),
                             Some(Action::Navigated(path)),
@@ -120,7 +120,7 @@ impl FileList {
                 let action = result
                     .as_ref()
                     .ok()
-                    .map(|(dir, _)| Action::DirectoryLoaded(dir.path.clone()));
+                    .map(|(dir, _)| Action::DirectoryLoaded(dir.path().to_path_buf()));
                 model.on_directory_loaded(result);
                 (self.begin_sort(model), action)
             }

@@ -9,7 +9,7 @@ use crate::filesystem::backends::{try_registry, MountedFs};
 #[derive(Clone)]
 pub struct MountedRoot {
     pub device: Arc<dyn MountedFs>,
-    pub dir: DirEntry,
+    pub dir: Arc<dyn DirEntry>,
 }
 
 pub struct Mounter;

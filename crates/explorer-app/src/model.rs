@@ -1,11 +1,12 @@
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use explorer_core::BlockDevice;
 use explorer_core::filesystem::{
     entry_at, is_mountable, navigation_parent, MountedRoot, Mounter,
 };
-use explorer_core::{DirEntry, FsEntry};
+use explorer_core::{open_host_dir, DirEntry, FsEntry};
 
 use crate::entry::FileEntry;
 use crate::i18n::{ids, LanguageBundle};
@@ -30,7 +31,7 @@ pub enum StatusInfo {
 #[derive(Debug, Clone)]
 pub enum OpenEntryAction {
     /// Navigate into a listed directory (load via [`DirEntry::list`]).
-    Navigate(DirEntry),
+    Navigate(Arc<dyn DirEntry>),
     Preview(explorer_core::FsEntry),
     OpenArchive(BlockDevice),
     OpenedSystem { name: String },
@@ -39,14 +40,14 @@ pub enum OpenEntryAction {
 /// Result of resolving an address-bar input in the current window.
 #[derive(Debug, Clone)]
 pub enum AddressTarget {
-    Directory(DirEntry),
+    Directory(Arc<dyn DirEntry>),
     File { path: PathBuf },
 }
 
 #[derive(Clone)]
 pub struct ExplorerModel {
     /// Current directory handle (listable).
-    current_dir: DirEntry,
+    current_dir: Arc<dyn DirEntry>,
     /// Archive window mount (`None` for disk windows).
     mount: Option<MountedRoot>,
     pub entries: Vec<FileEntry>,
@@ -65,7 +66,7 @@ impl ExplorerModel {
             .unwrap_or_else(|_| {
                 std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"))
             });
-        let current_dir = DirEntry::open_host(initial).unwrap_or_else(|message| {
+        let current_dir = open_host_dir(initial).unwrap_or_else(|message| {
             panic!("cannot open home directory: {message}")
         });
         Self::with_dir(current_dir, None)
@@ -79,7 +80,7 @@ impl ExplorerModel {
         Self::with_dir(current_dir, Some(mount))
     }
 
-    fn with_dir(current_dir: DirEntry, mount: Option<MountedRoot>) -> Self {
+    fn with_dir(current_dir: Arc<dyn DirEntry>, mount: Option<MountedRoot>) -> Self {
         let bundle = LanguageBundle::new(crate::i18n::Locale::En);
 
         Self {
@@ -98,12 +99,12 @@ impl ExplorerModel {
         Self::new_local()
     }
 
-    pub fn current_dir(&self) -> &DirEntry {
+    pub fn current_dir(&self) -> &Arc<dyn DirEntry> {
         &self.current_dir
     }
 
     pub fn current_path(&self) -> &Path {
-        &self.current_dir.path
+        self.current_dir.path()
     }
 
     pub fn mount(&self) -> Option<&MountedRoot> {
@@ -194,11 +195,12 @@ impl ExplorerModel {
             }
             match entry_at(mount.device.as_ref(), &path) {
                 Ok(FsEntry::Dir(dir)) => Ok(AddressTarget::Directory(dir)),
-                Ok(FsEntry::File(file)) => Ok(AddressTarget::File { path: file.path }),
+                Ok(FsEntry::File(file)) => Ok(AddressTarget::File { path: file.path().to_path_buf() }),
+                Ok(FsEntry::Volume(_)) => Err(ModelError::InvalidPath),
                 Err(_) => Err(ModelError::InvalidPath),
             }
         } else if path.is_dir() {
-            DirEntry::open_host(path)
+            open_host_dir(path)
                 .map(AddressTarget::Directory)
                 .map_err(ModelError::External)
         } else if path.is_file() {
@@ -209,7 +211,7 @@ impl ExplorerModel {
     }
 
     /// Resolve a navigation path to a [`DirEntry`] in this window.
-    pub fn resolve_dir(&self, path: PathBuf) -> Result<DirEntry, ModelError> {
+    pub fn resolve_dir(&self, path: PathBuf) -> Result<Arc<dyn DirEntry>, ModelError> {
         if let Some(mount) = &self.mount {
             if path.as_os_str().is_empty() {
                 return Ok(mount.dir.clone());
@@ -217,6 +219,7 @@ impl ExplorerModel {
             match entry_at(mount.device.as_ref(), &path) {
                 Ok(FsEntry::Dir(dir)) => Ok(dir),
                 Ok(FsEntry::File(_)) => Err(ModelError::NotDirectory),
+                Ok(FsEntry::Volume(_)) => Err(ModelError::NotDirectory),
                 Err(_) => Err(ModelError::InvalidPath),
             }
         } else if !path.exists() {
@@ -224,12 +227,12 @@ impl ExplorerModel {
         } else if !path.is_dir() {
             Err(ModelError::NotDirectory)
         } else {
-            DirEntry::open_host(path).map_err(ModelError::External)
+            open_host_dir(path).map_err(ModelError::External)
         }
     }
 
     /// Validate and begin loading a navigation path in this window.
-    pub fn navigate(&mut self, path: PathBuf) -> Option<DirEntry> {
+    pub fn navigate(&mut self, path: PathBuf) -> Option<Arc<dyn DirEntry>> {
         match self.resolve_dir(path) {
             Ok(dir) => {
                 self.begin_load();
@@ -243,17 +246,17 @@ impl ExplorerModel {
     }
 
     /// Begin loading a listed directory (skip re-validation; entry came from a listing).
-    pub fn navigate_dir(&mut self, dir: DirEntry) -> DirEntry {
+    pub fn navigate_dir(&mut self, dir: Arc<dyn DirEntry>) -> Arc<dyn DirEntry> {
         self.begin_load();
         dir
     }
 
-    pub fn go_up(&mut self) -> Option<DirEntry> {
+    pub fn go_up(&mut self) -> Option<Arc<dyn DirEntry>> {
         let parent = navigation_parent(self.current_path(), self.is_mount())?;
         self.navigate(parent)
     }
 
-    pub fn refresh(&mut self) -> Option<DirEntry> {
+    pub fn refresh(&mut self) -> Option<Arc<dyn DirEntry>> {
         self.begin_load();
         Some(self.current_dir.clone())
     }
@@ -306,17 +309,17 @@ impl ExplorerModel {
             let mut reader = file.open().ok()?;
             let mut data = Vec::new();
             reader.read_to_end(&mut data).ok()?;
-            let device = BlockDevice::from_bytes(file.name.clone(), data);
+            let device = BlockDevice::from_bytes(file.name().to_string(), data);
             is_mountable(&device).then_some(device)
         } else {
-            let device = BlockDevice::open_host(file.path.clone()).ok()?;
+            let device = BlockDevice::open_host(file.path().to_path_buf()).ok()?;
             is_mountable(&device).then_some(device)
         }
     }
 
     pub fn on_directory_loaded(
         &mut self,
-        result: Result<(DirEntry, Vec<FileEntry>), String>,
+        result: Result<(Arc<dyn DirEntry>, Vec<FileEntry>), String>,
     ) {
         self.loading = false;
         match result {

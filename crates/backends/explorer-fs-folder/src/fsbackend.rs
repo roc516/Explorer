@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use explorer_core::filesystem::{HostBackend, MountedFs};
-use explorer_core::{DirEntry, Directory, FsEntry};
+use explorer_core::{DirEntry, FsEntry};
 
 use crate::directory;
 
@@ -21,17 +21,28 @@ impl MountedFs for FolderFs {
     }
 }
 
-struct FolderDir(PathBuf);
+struct FolderDir {
+    name: String,
+    path: PathBuf,
+}
 
-impl Directory for FolderDir {
+impl DirEntry for FolderDir {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+
     fn list(&self) -> Result<Vec<FsEntry>, String> {
-        list_folder(&self.0)
+        list_folder(&self.path)
     }
 }
 
 fn list_folder(root: &Path) -> Result<Vec<FsEntry>, String> {
     directory::read_directory(root, |name, path| {
-        DirEntry::new(name, path.clone(), Arc::new(FolderDir(path)))
+        Arc::new(FolderDir { name, path }) as Arc<dyn DirEntry>
     })
 }
 
@@ -43,11 +54,12 @@ fn list_volume_entries() -> Vec<FsEntry> {
                 let drive = format!("{}:\\", letter as char);
                 let path = PathBuf::from(&drive);
                 path.exists().then(|| {
-                    FsEntry::Dir(DirEntry::new(
-                        drive,
-                        path.clone(),
-                        Arc::new(FolderDir(path)),
-                    ))
+                    FsEntry::Dir(
+                        Arc::new(FolderDir {
+                            name: drive,
+                            path: path.clone(),
+                        }) as Arc<dyn DirEntry>,
+                    )
                 })
             })
             .collect()
@@ -55,11 +67,12 @@ fn list_volume_entries() -> Vec<FsEntry> {
     #[cfg(not(windows))]
     {
         let path = PathBuf::from("/");
-        vec![FsEntry::Dir(DirEntry::new(
-            "/".to_string(),
-            path.clone(),
-            Arc::new(FolderDir(path)),
-        ))]
+        vec![FsEntry::Dir(
+            Arc::new(FolderDir {
+                name: "/".to_string(),
+                path: path.clone(),
+            }) as Arc<dyn DirEntry>,
+        )]
     }
 }
 
