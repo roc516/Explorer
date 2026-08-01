@@ -11,6 +11,7 @@ use iced::{Element, Fill, Subscription, Task, Theme};
 
 use crate::message::{input, window as window_msg, Message, Launch};
 use crate::theme::AppTheme;
+use crate::ui::directory_tree;
 use crate::ui::explorer::Explorer;
 use crate::ui::file_list;
 use crate::ui::settings::{self as settings_ui, Settings};
@@ -121,7 +122,7 @@ impl App {
             .map(|(id, window)| {
                 (
                     *id,
-                    window.file_list.subscription(),
+                    file_list::subscription(&window.file_list_ui),
                 )
             })
             .collect();
@@ -160,10 +161,12 @@ impl App {
 
         let load_dir = explorer.model.current_dir().clone();
         let init_path = explorer.model.current_path().to_path_buf();
-        let init_tree_task = explorer
-            .directory_tree
-            .sync_path(&init_path)
-            .map(move |msg| Message::Window(id, window_msg::Message::Tree(msg)));
+        let init_tree_task = directory_tree::sync_path(
+            &mut explorer.tree_ui,
+            &explorer.model.tree_state,
+            &init_path,
+        )
+        .map(move |msg| Message::Window(id, window_msg::Message::Tree(msg)));
 
         self.focused_window = Some(id);
         self.windows.insert(id, explorer);

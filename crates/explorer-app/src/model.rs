@@ -52,6 +52,7 @@ pub struct ExplorerState {
     current_dir: Arc<dyn DirEntry>,
     mount: Arc<dyn MountedFs>,
     pub file_list: FileListState,
+    pub tree_state: TreeState,
     pub bundle: LanguageBundle,
 }
 
@@ -77,7 +78,8 @@ impl ExplorerState {
             Ok(FsEntry::Dir(dir)) => dir,
             _ => mount_root_dir(mount.clone()),
         };
-        Self::with_dir(current_dir, mount)
+        let tree_state = TreeState::new(vec![TreeNode::from_dir(mount_root_dir(mount.clone()))]);
+        Self::with_dir(current_dir, mount, tree_state)
     }
 
     pub fn new_mounted(device: BlockDevice) -> Self {
@@ -85,16 +87,22 @@ impl ExplorerState {
             panic!("unsupported archive: {message}")
         });
         let current_dir = mount_root_dir(mount.clone());
-        Self::with_dir(current_dir, mount)
+        let tree_state = TreeState::new(vec![TreeNode::from_dir(mount_root_dir(mount.clone()))]);
+        Self::with_dir(current_dir, mount, tree_state)
     }
 
-    fn with_dir(current_dir: Arc<dyn DirEntry>, mount: Arc<dyn MountedFs>) -> Self {
+    fn with_dir(
+        current_dir: Arc<dyn DirEntry>,
+        mount: Arc<dyn MountedFs>,
+        tree_state: TreeState,
+    ) -> Self {
         let bundle = LanguageBundle::new(crate::i18n::Locale::En);
 
         Self {
             current_dir,
             mount,
             file_list: FileListState::new(),
+            tree_state,
             bundle,
         }
     }

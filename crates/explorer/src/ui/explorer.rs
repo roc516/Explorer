@@ -8,71 +8,64 @@ use iced::window;
 use iced::{Element, Fill, Task};
 
 use crate::message::{input, window as window_msg, Message};
-use crate::ui::directory_tree::{self, Action as TreeAction, DirectoryTree};
-use crate::ui::file_list::{self, Action as FileListAction, FileList};
+use crate::ui::directory_tree::{self, Action as TreeAction, TreeUi};
+use crate::ui::file_list::{self, Action as FileListAction, FileListUi};
 use crate::ui::preview::{
-    self as preview_ui, document, hex, image, text, Message as PreviewMessage, Preview, PreviewState,
+    self as preview_ui, document, hex, image, text, Message as PreviewMessage, PreviewState,
 };
-use crate::ui::status_bar::StatusBar;
-use crate::ui::toolbar::{self, Action as ToolbarAction, Toolbar};
+use crate::ui::status_bar;
+use crate::ui::toolbar::{self, Action as ToolbarAction, ToolbarUi};
 
 pub(crate) struct Explorer {
     pub(crate) model: ExplorerState,
-    toolbar: Toolbar,
-    pub(crate) directory_tree: DirectoryTree,
-    pub(crate) file_list: FileList,
-    status_bar: StatusBar,
-    preview: Preview,
-    preview_state: Option<PreviewState>,
+    pub(crate) file_list_ui: FileListUi,
+    pub(crate) tree_ui: TreeUi,
+    pub(crate) toolbar_ui: ToolbarUi,
+    pub(crate) preview: Option<PreviewState>,
 }
 
 impl Explorer {
     pub(crate) fn new_local(locale: Locale) -> Self {
         let mut model = ExplorerState::new_local();
         model.set_locale(locale);
-        let toolbar = Toolbar::new(&model);
+        let toolbar_ui = ToolbarUi::new(&model);
         Self {
             model,
-            toolbar,
-            directory_tree: DirectoryTree::new(),
-            file_list: FileList::new(),
-            status_bar: StatusBar::new(),
-            preview: Preview::new(),
-            preview_state: None,
+            toolbar_ui,
+            tree_ui: TreeUi::new(),
+            file_list_ui: FileListUi::new(),
+            preview: None,
         }
     }
 
     pub(crate) fn new_mounted(device: BlockDevice, locale: Locale) -> Self {
-        let mut model = ExplorerState::new_mounted(device.clone());
+        let mut model = ExplorerState::new_mounted(device);
         model.set_locale(locale);
-        let toolbar = Toolbar::new(&model);
+        let toolbar_ui = ToolbarUi::new(&model);
         Self {
             model,
-            toolbar,
-            directory_tree: DirectoryTree::for_mounted(device),
-            file_list: FileList::new(),
-            status_bar: StatusBar::new(),
-            preview: Preview::new(),
-            preview_state: None,
+            toolbar_ui,
+            tree_ui: TreeUi::new(),
+            file_list_ui: FileListUi::new(),
+            preview: None,
         }
     }
 
     pub(crate) fn view(&self, window_id: window::Id) -> Element<'_, Message> {
         let bundle = self.model.bundle.clone();
         let main = column![
-            self.toolbar.view(
+            toolbar::view(
+                &self.toolbar_ui,
                 bundle,
                 &self.model,
                 window_id,
             ),
             rule::horizontal(1),
             row![
-                self.directory_tree
-                    .view(bundle)
+                directory_tree::view(&self.tree_ui, &self.model.tree_state, bundle)
                     .map(move |message| Message::Window(window_id, window_msg::Message::Tree(message))),
                 rule::vertical(1),
-                self.file_list
-                    .view(&self.model)
+                file_list::view(&self.file_list_ui, &self.model)
                     .map(move |message| {
                         Message::Window(window_id, window_msg::Message::FileList(message))
                     }),
@@ -81,7 +74,7 @@ impl Explorer {
             .width(Fill)
             .height(Fill),
             rule::horizontal(1),
-            self.status_bar.view(&self.model),
+            status_bar::view(&self.model),
         ]
         .width(Fill)
         .height(Fill)
@@ -89,10 +82,9 @@ impl Explorer {
 
         // Same as settings: keep Stack as root so opening preview does not rebuild main.
         let mut layers = vec![main];
-        if let Some(preview_state) = &self.preview_state {
+        if let Some(preview_state) = &self.preview {
             layers.push(
-                self.preview
-                    .view(bundle, preview_state)
+                preview_ui::view(bundle, preview_state)
                     .map(move |message| {
                         Message::Window(window_id, window_msg::Message::Preview(message))
                     }),
@@ -108,15 +100,14 @@ impl Explorer {
 
     pub(crate) fn update_explorer(&mut self, message: toolbar::Message) -> Task<window_msg::Message> {
         let refresh_tree = matches!(message, toolbar::Message::Refresh);
-        let (task, action) = self.toolbar.update(message, &mut self.model);
+        let (task, action) = toolbar::update(&mut self.toolbar_ui, message, &mut self.model);
         let mut tasks = vec![task];
         if let Some(ToolbarAction::Load(dir)) = action {
             tasks.push(self.load_directory(dir));
         }
         if refresh_tree {
             tasks.push(
-                self.directory_tree
-                    .refresh()
+                directory_tree::refresh(&mut self.tree_ui, &mut self.model.tree_state)
                     .map(window_msg::Message::Tree),
             );
         }
@@ -127,26 +118,24 @@ impl Explorer {
         &mut self,
         message: file_list::Message,
     ) -> (Task<window_msg::Message>, Option<BlockDevice>) {
-        let (task, action) = self.file_list.update(&mut self.model, message);
+        let (task, action) = file_list::update(&mut self.file_list_ui, &mut self.model, message);
         let mut tasks = vec![task.map(window_msg::Message::FileList)];
 
         if let Some(action) = action {
             match action {
                 FileListAction::Navigated(path) => {
-                    self.toolbar.push_history(path.clone());
+                    toolbar::push_history(&mut self.toolbar_ui, path.clone());
                     tasks.push(
-                        self.directory_tree
-                            .sync_path(&path)
+                        directory_tree::sync_path(&mut self.tree_ui, &mut self.model.tree_state, &path)
                             .map(window_msg::Message::Tree),
                     );
                 }
                 FileListAction::DirectoryLoaded(path) => {
-                    if let Some(reveal) = self.toolbar.on_directory_loaded(&self.model) {
+                    if let Some(reveal) = toolbar::on_directory_loaded(&mut self.toolbar_ui, &self.model) {
                         self.model.select_path(&reveal);
                     }
                     tasks.push(
-                        self.directory_tree
-                            .sync_path(&path)
+                        directory_tree::sync_path(&mut self.tree_ui, &mut self.model.tree_state, &path)
                             .map(window_msg::Message::Tree),
                     );
                 }
@@ -154,7 +143,7 @@ impl Explorer {
                     tasks.push(self.open_preview(entry).map(window_msg::Message::Preview));
                 }
                 FileListAction::OpenArchive(device) => {
-                    return (Task::none(), Some(device));
+                    return (Task::batch(tasks), Some(device));
                 }
             }
         }
@@ -163,18 +152,18 @@ impl Explorer {
     }
 
     fn open_preview(&mut self, entry: explorer_core::FsEntry) -> Task<PreviewMessage> {
-        self.preview_state = Some(PreviewState::opening(entry.clone()));
+        self.preview = Some(PreviewState::opening(entry.clone()));
         preview_ui::load_preview_task(entry)
     }
 
     pub(crate) fn update_preview(&mut self, message: PreviewMessage) -> Task<window_msg::Message> {
         match message {
             PreviewMessage::Close => {
-                self.preview_state = None;
+                self.preview = None;
             }
             PreviewMessage::Loaded(result) => {
                 let bundle = self.model.bundle.clone();
-                let task = if let Some(state) = &mut self.preview_state {
+                let task = if let Some(state) = &mut self.preview {
                     state.loading = false;
                     match result {
                         Ok(file) => state.set_loaded_file(file),
@@ -197,9 +186,9 @@ impl Explorer {
                 return task.map(window_msg::Message::Preview);
             }
             PreviewMessage::OpenExternal => {
-                if let Some(source) = self.preview_state.as_ref().map(|state| state.source.clone()) {
+                if let Some(source) = self.preview.as_ref().map(|state| state.source.clone()) {
                     if let Err(message) = explorer_app::open_with_system(&source) {
-                        if let Some(state) = &mut self.preview_state {
+                        if let Some(state) = &mut self.preview {
                             state.error = Some(message);
                         }
                     }
@@ -222,7 +211,7 @@ impl Explorer {
     }
 
     fn update_text_preview(&mut self, message: text::Message) -> Task<window_msg::Message> {
-        let task = if let Some(state) = &mut self.preview_state {
+        let task = if let Some(state) = &mut self.preview {
             if let (Some(text_state), Some(file)) = (&mut state.text, state.file.as_ref()) {
                 if let explorer_app::PreviewKind::Text(preview) = &file.kind {
                     let preview = preview.clone();
@@ -253,7 +242,7 @@ impl Explorer {
     }
 
     fn update_hex_preview(&mut self, message: hex::Message) -> Task<window_msg::Message> {
-        let task = if let Some(state) = &mut self.preview_state {
+        let task = if let Some(state) = &mut self.preview {
             if let (Some(hex_state), Some(file)) = (&mut state.hex, state.file.as_ref()) {
                 if let explorer_app::PreviewKind::Hex(preview) = &file.kind {
                     let preview = preview.clone();
@@ -282,7 +271,7 @@ impl Explorer {
     }
 
     fn update_image_preview(&mut self, message: image::Message) {
-        if let Some(state) = &mut self.preview_state {
+        if let Some(state) = &mut self.preview {
             if let Some(image_state) = &mut state.image {
                 match message {
                     image::Message::ZoomIn => image_state.zoom_in(),
@@ -295,7 +284,7 @@ impl Explorer {
     }
 
     fn update_document_preview(&mut self, message: document::Message) {
-        if let Some(state) = &mut self.preview_state {
+        if let Some(state) = &mut self.preview {
             if let Some(document_state) = &mut state.document {
                 match message {
                     document::Message::Editor(action) => {
@@ -307,12 +296,12 @@ impl Explorer {
     }
 
     pub(crate) fn update_tree(&mut self, message: directory_tree::Message) -> Task<window_msg::Message> {
-        let (task, action) = self.directory_tree.update(message);
+        let (task, action) = directory_tree::update(&mut self.tree_ui, &mut self.model.tree_state, message);
         let mut tasks = vec![task.map(window_msg::Message::Tree)];
 
         if let Some(TreeAction::Navigate(dir)) = action {
             let dir = self.model.navigate_dir(dir);
-            self.toolbar.push_history(dir.path().to_path_buf());
+            toolbar::push_history(&mut self.toolbar_ui, dir.path().to_path_buf());
             tasks.push(self.load_directory(dir));
         }
 
@@ -331,18 +320,17 @@ impl Explorer {
         }
 
         match key {
-            keyboard::Key::Named(keyboard::key::Named::Escape) if self.preview_state.is_some() => {
+            keyboard::Key::Named(keyboard::key::Named::Escape) if self.preview.is_some() => {
                 self.update_preview(PreviewMessage::Close)
             }
             keyboard::Key::Named(keyboard::key::Named::Escape) if settings_open => Task::none(),
             keyboard::Key::Named(keyboard::key::Named::Escape)
-                if self.toolbar.is_address_editing() =>
+                if toolbar::is_address_editing(&self.toolbar_ui) =>
             {
-                self.toolbar
-                    .cancel_address_edit(&self.model);
+                toolbar::cancel_address_edit(&mut self.toolbar_ui, &self.model);
                 Task::none()
             }
-            _ if self.preview_state.is_some() || settings_open => Task::none(),
+            _ if self.preview.is_some() || settings_open => Task::none(),
             keyboard::Key::Named(keyboard::key::Named::Enter) => {
                 if let Some(index) = self.model.file_list.selected_index {
                     let (task, _) =

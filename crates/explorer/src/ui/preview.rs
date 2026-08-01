@@ -92,91 +92,77 @@ pub fn load_preview_task(entry: FsEntry) -> Task<Message> {
     )
 }
 
-pub struct Preview;
+pub fn view<'a>(bundle: LanguageBundle, state: &'a PreviewState) -> Element<'a, Message> {
+    let open_label = bundle.tr(ids::PREVIEW_OPEN_EXTERNAL);
+    let body: Element<'a, Message> = if state.loading {
+        crate::ui::loading::view_tr(bundle)
+    } else if let Some(error) = &state.error {
+        preview_message(error.clone(), true)
+    } else if let Some(file) = &state.file {
+        body_for_file(bundle, file, state)
+    } else {
+        preview_message(bundle.tr(ids::PREVIEW_LOAD_FAILED), true)
+    };
 
-impl Preview {
-    pub fn new() -> Self {
-        Self
+    let show_status_bar = !state.loading
+        && state.error.is_none()
+        && matches!(
+            state.file.as_ref().map(|file| &file.kind),
+            Some(PreviewKind::Text(_))
+                | Some(PreviewKind::Image(_))
+                | Some(PreviewKind::Word(_))
+                | Some(PreviewKind::Ppt(_))
+                | Some(PreviewKind::Pdf(_))
+                | Some(PreviewKind::Hex(_))
+        );
+
+    let body_height = if show_status_bar {
+        HEIGHT_PREVIEW_BODY - HEIGHT_PREVIEW_STATUS_BAR - 1.0
+    } else {
+        HEIGHT_PREVIEW_BODY
+    };
+
+    let body = container(body)
+        .padding(SPACE_LG)
+        .width(Fill)
+        .height(Length::Fixed(body_height));
+
+    let footer = if show_status_bar {
+        state.file.as_ref().and_then(|file| match &file.kind {
+            PreviewKind::Text(text_preview) => state.text.as_ref().map(|text| {
+                text::status_bar(bundle, text, text_preview, file).map(Message::Text)
+            }),
+            PreviewKind::Image(image_preview) => state.image.as_ref().map(|image| {
+                image::status_bar(bundle, image, image_preview, file).map(Message::Image)
+            }),
+            PreviewKind::Word(_) | PreviewKind::Ppt(_) | PreviewKind::Pdf(_) => {
+                state
+                    .document
+                    .as_ref()
+                    .map(|_| document::status_bar(bundle, file).map(Message::Document))
+            }
+            PreviewKind::Hex(hex_preview) => state.hex.as_ref().map(|hex| {
+                hex::status_bar(bundle, hex_preview, hex, file).map(Message::Hex)
+            }),
+            PreviewKind::Unsupported { .. } => None,
+        })
+    } else {
+        None
+    };
+
+    let mut dialog = Dialog::new(state.name.clone(), Message::Close)
+        .width(DIALOG_WIDTH_PREVIEW)
+        .body(body);
+
+    if !state.loading {
+        dialog = dialog.header_action(open_external_button(open_label));
     }
 
-    pub fn view<'a>(&self, bundle: LanguageBundle, state: &'a PreviewState) -> Element<'a, Message> {
-        let open_label = bundle.tr(ids::PREVIEW_OPEN_EXTERNAL);
-        let body: Element<'a, Message> = if state.loading {
-            crate::ui::loading::view_tr(bundle)
-        } else if let Some(error) = &state.error {
-            preview_message(error.clone(), true)
-        } else if let Some(file) = &state.file {
-            body_for_file(bundle, file, state)
-        } else {
-            preview_message(bundle.tr(ids::PREVIEW_LOAD_FAILED), true)
-        };
-
-        let show_status_bar = !state.loading
-            && state.error.is_none()
-            && matches!(
-                state.file.as_ref().map(|file| &file.kind),
-                Some(PreviewKind::Text(_))
-                    | Some(PreviewKind::Image(_))
-                    | Some(PreviewKind::Word(_))
-                    | Some(PreviewKind::Ppt(_))
-                    | Some(PreviewKind::Pdf(_))
-                    | Some(PreviewKind::Hex(_))
-            );
-
-        let body_height = if show_status_bar {
-            HEIGHT_PREVIEW_BODY - HEIGHT_PREVIEW_STATUS_BAR - 1.0
-        } else {
-            HEIGHT_PREVIEW_BODY
-        };
-
-        let body = container(body)
-            .padding(SPACE_LG)
-            .width(Fill)
-            .height(Length::Fixed(body_height));
-
-        let footer = if show_status_bar {
-            state.file.as_ref().and_then(|file| match &file.kind {
-                PreviewKind::Text(text_preview) => state.text.as_ref().map(|text| {
-                    text::status_bar(bundle, text, text_preview, file).map(Message::Text)
-                }),
-                PreviewKind::Image(image_preview) => state.image.as_ref().map(|image| {
-                    image::status_bar(bundle, image, image_preview, file).map(Message::Image)
-                }),
-                PreviewKind::Word(_) | PreviewKind::Ppt(_) | PreviewKind::Pdf(_) => {
-                    state
-                        .document
-                        .as_ref()
-                        .map(|_| document::status_bar(bundle, file).map(Message::Document))
-                }
-                PreviewKind::Hex(hex_preview) => state.hex.as_ref().map(|hex| {
-                    hex::status_bar(bundle, hex_preview, hex, file).map(Message::Hex)
-                }),
-                PreviewKind::Unsupported { .. } => None,
-            })
-        } else {
-            None
-        };
-
-        let mut dialog = Dialog::new(state.name.clone(), Message::Close)
-            .width(DIALOG_WIDTH_PREVIEW)
-            .body(body);
-
-        if !state.loading {
-            dialog = dialog.header_action(open_external_button(open_label));
-        }
-
-        if let Some(footer) = footer {
-            dialog = dialog.footer(footer);
-        }
-
-        dialog.view()
+    if let Some(footer) = footer {
+        dialog = dialog.footer(footer);
     }
-}
 
-impl Default for Preview {
-    fn default() -> Self {
-        Self::new()
-    }
+    dialog.view()
 }
 
 fn open_external_button<'a>(label: String) -> Element<'a, Message> {
