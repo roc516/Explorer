@@ -5,7 +5,7 @@ use crate::entry::FsEntry;
 /// A mounted filesystem root — lists only its immediate children.
 ///
 /// Nested directories are listed via [`crate::entry::DirEntry::list`], not this trait.
-pub trait MountedDevice: Send + Sync {
+pub trait MountedFs: Send + Sync {
     /// List immediate children of the mount root.
     fn list(&self) -> Result<Vec<FsEntry>, String>;
 }
@@ -13,7 +13,7 @@ pub trait MountedDevice: Send + Sync {
 /// Resolve `path` relative to a mount root to a single [`FsEntry`].
 ///
 /// Empty path is invalid — the mount root is the device itself, not an entry.
-pub fn entry_at(root: &dyn MountedDevice, path: &Path) -> Result<FsEntry, String> {
+pub fn entry_at(root: &dyn MountedFs, path: &Path) -> Result<FsEntry, String> {
     let parts: Vec<String> = path
         .components()
         .filter_map(|component| match component {

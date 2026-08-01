@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::device::BlockDevice;
-use super::MountedDevice;
+use super::MountedFs;
 
 /// A mountable filesystem backend (archives, etc.).
 ///
@@ -16,7 +16,7 @@ pub trait FsBackend: Send + Sync {
     }
 
     /// Mount a block device and return a filesystem for listing entries.
-    fn mount(&self, device: &BlockDevice) -> Result<Box<dyn MountedDevice>, String>;
+    fn mount(&self, device: &BlockDevice) -> Result<Box<dyn MountedFs>, String>;
 }
 
 /// Host folder filesystem — same shape as [`FsBackend`], but keyed by path.
@@ -29,5 +29,5 @@ pub trait HostBackend: Send + Sync {
     fn matches(&self, path: &Path) -> bool;
 
     /// Mount a host path and return a filesystem for listing entries.
-    fn mount(&self, path: &Path) -> Result<Box<dyn MountedDevice>, String>;
+    fn mount(&self, path: &Path) -> Result<Box<dyn MountedFs>, String>;
 }

@@ -4,7 +4,7 @@ mod path;
 pub use backends::{
     ensure_backends_registered, ensure_host_registered, entry_at, host_backend, is_mountable,
     try_host, try_registry, FsBackend, FsRegistry,
-    HostBackend, MountedDevice,
+    HostBackend, MountedFs,
 };
 pub use path::{
     file_name_of, navigation_parent, MountedRoot, Mounter,

@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 use crate::device::BlockDevice;
 
 pub use backend::{FsBackend, HostBackend};
-pub use fs::{entry_at, MountedDevice};
+pub use fs::{entry_at, MountedFs};
 
 /// Registry of mountable backends (archives, etc.). Host FS is separate.
 pub struct FsRegistry {

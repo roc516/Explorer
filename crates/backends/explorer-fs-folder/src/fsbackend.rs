@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use explorer_core::filesystem::{HostBackend, MountedDevice};
+use explorer_core::filesystem::{HostBackend, MountedFs};
 use explorer_core::{DirEntry, Directory, FsEntry};
 
 use crate::directory;
@@ -12,7 +12,7 @@ enum FolderFs {
     Dir(PathBuf),
 }
 
-impl MountedDevice for FolderFs {
+impl MountedFs for FolderFs {
     fn list(&self) -> Result<Vec<FsEntry>, String> {
         match self {
             Self::Roots => Ok(list_volume_entries()),
@@ -72,7 +72,7 @@ impl HostBackend for crate::FolderBackend {
         path.as_os_str().is_empty() || path.is_dir()
     }
 
-    fn mount(&self, path: &Path) -> Result<Box<dyn MountedDevice>, String> {
+    fn mount(&self, path: &Path) -> Result<Box<dyn MountedFs>, String> {
         if path.as_os_str().is_empty() {
             return Ok(Box::new(FolderFs::Roots));
         }

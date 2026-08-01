@@ -3,12 +3,12 @@ use std::sync::Arc;
 
 use crate::entry::{mount_root_dir, DirEntry};
 use crate::device::BlockDevice;
-use crate::filesystem::backends::{try_registry, MountedDevice};
+use crate::filesystem::backends::{try_registry, MountedFs};
 
 /// A successfully mounted archive: filesystem handle and root directory.
 #[derive(Clone)]
 pub struct MountedRoot {
-    pub device: Arc<dyn MountedDevice>,
+    pub device: Arc<dyn MountedFs>,
     pub dir: DirEntry,
 }
 
@@ -23,7 +23,7 @@ impl Mounter {
             .ok_or("unsupported-archive")?;
 
         let mounted = backend.mount(&device)?;
-        let mounted: Arc<dyn MountedDevice> = Arc::from(mounted);
+        let mounted: Arc<dyn MountedFs> = Arc::from(mounted);
 
         Ok(MountedRoot {
             device: mounted.clone(),

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use crate::filesystem::backends::{host_backend, MountedDevice};
+use crate::filesystem::backends::{host_backend, MountedFs};
 use crate::filesystem::file_name_of;
 
 /// Reader that supports both sequential reads and seeking.
@@ -75,7 +75,7 @@ impl DirEntry {
                 name
             }
         };
-        let mounted: Arc<dyn MountedDevice> = Arc::from(host.mount(&path)?);
+        let mounted: Arc<dyn MountedFs> = Arc::from(host.mount(&path)?);
         Ok(Self::new(
             name,
             path,
@@ -89,7 +89,7 @@ impl DirEntry {
     }
 }
 
-struct MountedDirectory(Arc<dyn MountedDevice>);
+struct MountedDirectory(Arc<dyn MountedFs>);
 
 impl Directory for MountedDirectory {
     fn list(&self) -> Result<Vec<FsEntry>, String> {
@@ -97,8 +97,8 @@ impl Directory for MountedDirectory {
     }
 }
 
-/// Wrap a cached [`MountedDevice`] as a mount-root [`DirEntry`].
-pub(crate) fn mount_root_dir(name: String, mounted: Arc<dyn MountedDevice>) -> DirEntry {
+/// Wrap a cached [`MountedFs`] as a mount-root [`DirEntry`].
+pub(crate) fn mount_root_dir(name: String, mounted: Arc<dyn MountedFs>) -> DirEntry {
     DirEntry::new(
         name,
         PathBuf::new(),

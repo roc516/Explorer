@@ -4,7 +4,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use explorer_core::{BlockDevice, BlockIo};
-use explorer_core::filesystem::{FsBackend, MountedDevice};
+use explorer_core::filesystem::{FsBackend, MountedFs};
 use explorer_core::{DirEntry, Directory, FileBytes, FileEntry as CoreFileEntry, FsEntry, SeekRead};
 use zip::ZipArchive;
 
@@ -166,7 +166,7 @@ pub struct ZipFs {
     archive: Arc<Mutex<ZipArchive<BlockReader>>>,
 }
 
-/// A directory inside a zip — listed via [`Directory`], not [`MountedDevice`].
+/// A directory inside a zip — listed via [`Directory`], not [`MountedFs`].
 struct ZipDir {
     entries: Arc<Vec<ZipEntryRecord>>,
     archive: Arc<Mutex<ZipArchive<BlockReader>>>,
@@ -276,7 +276,7 @@ fn read_directory(
     Ok(items)
 }
 
-impl MountedDevice for ZipFs {
+impl MountedFs for ZipFs {
     fn list(&self) -> Result<Vec<FsEntry>, String> {
         read_directory(&self.entries, &self.archive, "")
     }
@@ -318,7 +318,7 @@ impl FsBackend for crate::ZipBackend {
         looks_like_zip(device)
     }
 
-    fn mount(&self, device: &BlockDevice) -> Result<Box<dyn MountedDevice>, String> {
-        ZipFs::open(device).map(|fs| Box::new(fs) as Box<dyn MountedDevice>)
+    fn mount(&self, device: &BlockDevice) -> Result<Box<dyn MountedFs>, String> {
+        ZipFs::open(device).map(|fs| Box::new(fs) as Box<dyn MountedFs>)
     }
 }
