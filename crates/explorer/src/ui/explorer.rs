@@ -8,19 +8,19 @@ use iced::window;
 use iced::{Element, Fill, Task};
 
 use crate::message::{input, window as window_msg, Message};
-use crate::ui::directory_tree::{self, Action as TreeAction, TreeUi};
-use crate::ui::file_list::{self, Action as FileListAction, FileListUi};
+use crate::ui::directory_tree::{self, Action as TreeAction, Tree};
+use crate::ui::file_list::{self, Action as FileListAction, FileList};
 use crate::ui::preview::{
     self as preview_ui, document, hex, image, text, Message as PreviewMessage, PreviewState,
 };
 use crate::ui::status_bar;
-use crate::ui::toolbar::{self, Action as ToolbarAction, ToolbarUi};
+use crate::ui::toolbar::{self, Action as ToolbarAction, Toolbar};
 
 pub(crate) struct Explorer {
     pub(crate) model: ExplorerState,
-    pub(crate) file_list_ui: FileListUi,
-    pub(crate) tree_ui: TreeUi,
-    pub(crate) toolbar_ui: ToolbarUi,
+    pub(crate) file_list: FileList,
+    pub(crate) tree: Tree,
+    pub(crate) toolbar: Toolbar,
     pub(crate) preview: Option<PreviewState>,
 }
 
@@ -28,12 +28,12 @@ impl Explorer {
     pub(crate) fn new_local(locale: Locale) -> Self {
         let mut model = ExplorerState::new_local();
         model.set_locale(locale);
-        let toolbar_ui = ToolbarUi::new(&model);
+        let toolbar = Toolbar::new(&model);
         Self {
             model,
-            toolbar_ui,
-            tree_ui: TreeUi::new(),
-            file_list_ui: FileListUi::new(),
+            toolbar,
+            tree: Tree::new(),
+            file_list: FileList::new(),
             preview: None,
         }
     }
@@ -41,12 +41,12 @@ impl Explorer {
     pub(crate) fn new_mounted(device: BlockDevice, locale: Locale) -> Self {
         let mut model = ExplorerState::new_mounted(device);
         model.set_locale(locale);
-        let toolbar_ui = ToolbarUi::new(&model);
+        let toolbar = Toolbar::new(&model);
         Self {
             model,
-            toolbar_ui,
-            tree_ui: TreeUi::new(),
-            file_list_ui: FileListUi::new(),
+            toolbar,
+            tree: Tree::new(),
+            file_list: FileList::new(),
             preview: None,
         }
     }
@@ -55,17 +55,17 @@ impl Explorer {
         let bundle = self.model.bundle.clone();
         let main = column![
             toolbar::view(
-                &self.toolbar_ui,
+                &self.toolbar,
                 bundle,
                 &self.model,
                 window_id,
             ),
             rule::horizontal(1),
             row![
-                directory_tree::view(&self.tree_ui, &self.model.tree_state, bundle)
+                directory_tree::view(&self.tree, &self.model.tree_state, bundle)
                     .map(move |message| Message::Window(window_id, window_msg::Message::Tree(message))),
                 rule::vertical(1),
-                file_list::view(&self.file_list_ui, &self.model)
+                file_list::view(&self.file_list, &self.model)
                     .map(move |message| {
                         Message::Window(window_id, window_msg::Message::FileList(message))
                     }),
@@ -100,14 +100,14 @@ impl Explorer {
 
     pub(crate) fn update_explorer(&mut self, message: toolbar::Message) -> Task<window_msg::Message> {
         let refresh_tree = matches!(message, toolbar::Message::Refresh);
-        let (task, action) = toolbar::update(&mut self.toolbar_ui, message, &mut self.model);
+        let (task, action) = toolbar::update(&mut self.toolbar, message, &mut self.model);
         let mut tasks = vec![task];
         if let Some(ToolbarAction::Load(dir)) = action {
             tasks.push(self.load_directory(dir));
         }
         if refresh_tree {
             tasks.push(
-                directory_tree::refresh(&mut self.tree_ui, &mut self.model.tree_state)
+                directory_tree::refresh(&mut self.tree, &mut self.model.tree_state)
                     .map(window_msg::Message::Tree),
             );
         }
@@ -118,24 +118,24 @@ impl Explorer {
         &mut self,
         message: file_list::Message,
     ) -> (Task<window_msg::Message>, Option<BlockDevice>) {
-        let (task, action) = file_list::update(&mut self.file_list_ui, &mut self.model, message);
+        let (task, action) = file_list::update(&mut self.file_list, &mut self.model, message);
         let mut tasks = vec![task.map(window_msg::Message::FileList)];
 
         if let Some(action) = action {
             match action {
                 FileListAction::Navigated(path) => {
-                    toolbar::push_history(&mut self.toolbar_ui, path.clone());
+                    toolbar::push_history(&mut self.toolbar, path.clone());
                     tasks.push(
-                        directory_tree::sync_path(&mut self.tree_ui, &mut self.model.tree_state, &path)
+                        directory_tree::sync_path(&mut self.tree, &mut self.model.tree_state, &path)
                             .map(window_msg::Message::Tree),
                     );
                 }
                 FileListAction::DirectoryLoaded(path) => {
-                    if let Some(reveal) = toolbar::on_directory_loaded(&mut self.toolbar_ui, &self.model) {
+                    if let Some(reveal) = toolbar::on_directory_loaded(&mut self.toolbar, &self.model) {
                         self.model.select_path(&reveal);
                     }
                     tasks.push(
-                        directory_tree::sync_path(&mut self.tree_ui, &mut self.model.tree_state, &path)
+                        directory_tree::sync_path(&mut self.tree, &mut self.model.tree_state, &path)
                             .map(window_msg::Message::Tree),
                     );
                 }
@@ -296,12 +296,12 @@ impl Explorer {
     }
 
     pub(crate) fn update_tree(&mut self, message: directory_tree::Message) -> Task<window_msg::Message> {
-        let (task, action) = directory_tree::update(&mut self.tree_ui, &mut self.model.tree_state, message);
+        let (task, action) = directory_tree::update(&mut self.tree, &mut self.model.tree_state, message);
         let mut tasks = vec![task.map(window_msg::Message::Tree)];
 
         if let Some(TreeAction::Navigate(dir)) = action {
             let dir = self.model.navigate_dir(dir);
-            toolbar::push_history(&mut self.toolbar_ui, dir.path().to_path_buf());
+            toolbar::push_history(&mut self.toolbar, dir.path().to_path_buf());
             tasks.push(self.load_directory(dir));
         }
 
@@ -325,9 +325,9 @@ impl Explorer {
             }
             keyboard::Key::Named(keyboard::key::Named::Escape) if settings_open => Task::none(),
             keyboard::Key::Named(keyboard::key::Named::Escape)
-                if toolbar::is_address_editing(&self.toolbar_ui) =>
+                if toolbar::is_address_editing(&self.toolbar) =>
             {
-                toolbar::cancel_address_edit(&mut self.toolbar_ui, &self.model);
+                toolbar::cancel_address_edit(&mut self.toolbar, &self.model);
                 Task::none()
             }
             _ if self.preview.is_some() || settings_open => Task::none(),

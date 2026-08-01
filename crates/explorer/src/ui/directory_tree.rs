@@ -31,14 +31,14 @@ pub enum Action {
 }
 
 /// UI 状态：展开/加载/选中节点，业务数据由 `TreeState` 参数传入。
-pub struct TreeUi {
+pub struct Tree {
     expanded: BTreeSet<PathBuf>,
     loading: BTreeSet<PathBuf>,
     selected: Option<PathBuf>,
     width: Length,
 }
 
-impl TreeUi {
+impl Tree {
     pub fn new() -> Self {
         Self {
             expanded: BTreeSet::new(),
@@ -49,14 +49,14 @@ impl TreeUi {
     }
 }
 
-impl Default for TreeUi {
+impl Default for Tree {
     fn default() -> Self {
         Self::new()
     }
 }
 
 pub fn update(
-    ui: &mut TreeUi,
+    ui: &mut Tree,
     data: &mut TreeState,
     message: Message,
 ) -> (Task<Message>, Option<Action>) {
@@ -80,13 +80,13 @@ pub fn update(
     }
 }
 
-pub fn sync_path(ui: &mut TreeUi, data: &TreeState, path: &Path) -> Task<Message> {
+pub fn sync_path(ui: &mut Tree, data: &TreeState, path: &Path) -> Task<Message> {
     sync_selection(ui, data, path)
         .map(load_children_task)
         .unwrap_or_else(Task::none)
 }
 
-pub fn refresh(ui: &mut TreeUi, data: &mut TreeState) -> Task<Message> {
+pub fn refresh(ui: &mut Tree, data: &mut TreeState) -> Task<Message> {
     data.clear_children();
     ui.loading.clear();
     next_pending_load(ui, data)
@@ -95,7 +95,7 @@ pub fn refresh(ui: &mut TreeUi, data: &mut TreeState) -> Task<Message> {
 }
 
 pub fn view(
-    ui: &TreeUi,
+    ui: &Tree,
     data: &TreeState,
     bundle: explorer_app::LanguageBundle,
 ) -> Element<'static, Message> {
@@ -122,7 +122,7 @@ pub fn view(
 
 // —— 内部：UI 状态变更 + 业务数据查询 ——
 
-fn toggle(ui: &mut TreeUi, data: &TreeState, path: PathBuf) -> Option<Arc<dyn DirEntry>> {
+fn toggle(ui: &mut Tree, data: &TreeState, path: PathBuf) -> Option<Arc<dyn DirEntry>> {
     if ui.expanded.contains(&path) {
         ui.expanded.remove(&path);
         return None;
@@ -136,13 +136,13 @@ fn toggle(ui: &mut TreeUi, data: &TreeState, path: PathBuf) -> Option<Arc<dyn Di
     }
 }
 
-fn select(ui: &mut TreeUi, data: &TreeState, path: PathBuf) -> Option<Arc<dyn DirEntry>> {
+fn select(ui: &mut Tree, data: &TreeState, path: PathBuf) -> Option<Arc<dyn DirEntry>> {
     ui.selected = Some(path.clone());
     data.find_entry(&path).cloned()
 }
 
 fn on_children_loaded(
-    ui: &mut TreeUi,
+    ui: &mut Tree,
     data: &mut TreeState,
     path: PathBuf,
     result: Result<Vec<TreeNode>, String>,
@@ -161,12 +161,12 @@ fn on_children_loaded(
     next_pending_load(ui, data)
 }
 
-fn sync_selection(ui: &mut TreeUi, data: &TreeState, current: &Path) -> Option<Arc<dyn DirEntry>> {
+fn sync_selection(ui: &mut Tree, data: &TreeState, current: &Path) -> Option<Arc<dyn DirEntry>> {
     ui.selected = Some(current.to_path_buf());
     next_sync_load(ui, data, current)
 }
 
-fn next_sync_load(ui: &mut TreeUi, data: &TreeState, current: &Path) -> Option<Arc<dyn DirEntry>> {
+fn next_sync_load(ui: &mut Tree, data: &TreeState, current: &Path) -> Option<Arc<dyn DirEntry>> {
     for path in ancestors_and_self(current) {
         ui.expanded.insert(path.clone());
         if data.has_children(&path) || ui.loading.contains(&path) {
@@ -177,7 +177,7 @@ fn next_sync_load(ui: &mut TreeUi, data: &TreeState, current: &Path) -> Option<A
     None
 }
 
-fn next_pending_load(ui: &mut TreeUi, data: &TreeState) -> Option<Arc<dyn DirEntry>> {
+fn next_pending_load(ui: &mut Tree, data: &TreeState) -> Option<Arc<dyn DirEntry>> {
     if let Some(selected) = ui.selected.clone() {
         if let Some(entry) = next_sync_load(ui, data, selected.as_path()) {
             return Some(entry);
@@ -197,20 +197,20 @@ fn next_pending_load(ui: &mut TreeUi, data: &TreeState) -> Option<Arc<dyn DirEnt
     None
 }
 
-fn begin_load(ui: &mut TreeUi, data: &TreeState, path: &Path) -> Option<Arc<dyn DirEntry>> {
+fn begin_load(ui: &mut Tree, data: &TreeState, path: &Path) -> Option<Arc<dyn DirEntry>> {
     let entry = data.find_entry(path)?.clone();
     ui.loading.insert(path.to_path_buf());
     Some(entry)
 }
 
-fn rows(ui: &TreeUi, data: &TreeState) -> Vec<TreeRow> {
+fn rows(ui: &Tree, data: &TreeState) -> Vec<TreeRow> {
     let mut rows = Vec::new();
     append_rows(ui, data.roots(), 0, data, &mut rows);
     rows
 }
 
 fn append_rows(
-    ui: &TreeUi,
+    ui: &Tree,
     nodes: &[TreeNode],
     depth: usize,
     data: &TreeState,
@@ -237,7 +237,7 @@ fn append_rows(
     }
 }
 
-fn is_expandable(ui: &TreeUi, data: &TreeState, path: &Path) -> bool {
+fn is_expandable(ui: &Tree, data: &TreeState, path: &Path) -> bool {
     if ui.loading.contains(path) {
         return true;
     }

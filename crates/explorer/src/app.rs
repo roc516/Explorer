@@ -122,7 +122,7 @@ impl App {
             .map(|(id, window)| {
                 (
                     *id,
-                    file_list::subscription(&window.file_list_ui),
+                    file_list::subscription(&window.file_list),
                 )
             })
             .collect();
@@ -162,7 +162,7 @@ impl App {
         let load_dir = explorer.model.current_dir().clone();
         let init_path = explorer.model.current_path().to_path_buf();
         let init_tree_task = directory_tree::sync_path(
-            &mut explorer.tree_ui,
+            &mut explorer.tree,
             &explorer.model.tree_state,
             &init_path,
         )

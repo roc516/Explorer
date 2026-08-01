@@ -24,14 +24,14 @@ use crate::message::{window as window_msg, Message as AppMessage};
 use address::address_bar;
 use nav::nav_buttons;
 
-pub struct ToolbarUi {
+pub struct Toolbar {
     navigation: NavigationHistory,
     address_input: String,
     address_editing: bool,
     reveal_path: Option<PathBuf>,
 }
 
-impl ToolbarUi {
+impl Toolbar {
     pub fn new(model: &ExplorerState) -> Self {
         Self {
             navigation: NavigationHistory::new(model.current_path().to_path_buf()),
@@ -42,7 +42,7 @@ impl ToolbarUi {
     }
 }
 
-impl Default for ToolbarUi {
+impl Default for Toolbar {
     fn default() -> Self {
         Self {
             navigation: NavigationHistory::new(PathBuf::from("/")),
@@ -53,22 +53,22 @@ impl Default for ToolbarUi {
     }
 }
 
-pub fn push_history(ui: &mut ToolbarUi, path: PathBuf) {
+pub fn push_history(ui: &mut Toolbar, path: PathBuf) {
     ui.navigation.push(path);
 }
 
-pub fn is_address_editing(ui: &ToolbarUi) -> bool {
+pub fn is_address_editing(ui: &Toolbar) -> bool {
     ui.address_editing
 }
 
-pub fn cancel_address_edit(ui: &mut ToolbarUi, model: &ExplorerState) {
+pub fn cancel_address_edit(ui: &mut Toolbar, model: &ExplorerState) {
     ui.address_editing = false;
     ui.address_input = model.internal_display();
 }
 
 /// Sync address bar after a directory finished loading.
 /// Returns a navigation path that should be selected in the file list, if any.
-pub fn on_directory_loaded(ui: &mut ToolbarUi, model: &ExplorerState) -> Option<PathBuf> {
+pub fn on_directory_loaded(ui: &mut Toolbar, model: &ExplorerState) -> Option<PathBuf> {
     ui.address_editing = false;
     if let Some(reveal) = ui.reveal_path.take() {
         ui.address_input = reveal.display().to_string();
@@ -80,7 +80,7 @@ pub fn on_directory_loaded(ui: &mut ToolbarUi, model: &ExplorerState) -> Option<
 }
 
 pub fn update(
-    ui: &mut ToolbarUi,
+    ui: &mut Toolbar,
     message: Message,
     model: &mut ExplorerState,
 ) -> (Task<window_msg::Message>, Option<Action>) {
@@ -134,7 +134,7 @@ pub fn update(
 }
 
 pub fn view<'a>(
-    ui: &'a ToolbarUi,
+    ui: &'a Toolbar,
     bundle: LanguageBundle,
     model: &'a ExplorerState,
     window_id: iced_window::Id,
@@ -168,7 +168,7 @@ pub fn view<'a>(
     .into()
 }
 
-fn submit_address(ui: &mut ToolbarUi, model: &mut ExplorerState) -> Option<Action> {
+fn submit_address(ui: &mut Toolbar, model: &mut ExplorerState) -> Option<Action> {
     ui.address_editing = false;
 
     match model.resolve_address(&ui.address_input) {

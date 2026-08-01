@@ -24,7 +24,7 @@ use columns::{
 use header::ColumnLabels;
 use sort::{sort_entries_task, SortDirection, SortState};
 
-pub struct FileListUi {
+pub struct FileList {
     column_widths: ColumnWidths,
     column_order: ColumnOrder,
     column_resize: Option<ActiveColumnResize>,
@@ -35,7 +35,7 @@ pub struct FileListUi {
     sorting: bool,
 }
 
-impl FileListUi {
+impl FileList {
     pub fn new() -> Self {
         Self {
             column_widths: ColumnWidths::default(),
@@ -50,13 +50,13 @@ impl FileListUi {
     }
 }
 
-impl Default for FileListUi {
+impl Default for FileList {
     fn default() -> Self {
         Self::new()
     }
 }
 
-pub fn subscription(ui: &FileListUi) -> Subscription<Message> {
+pub fn subscription(ui: &FileList) -> Subscription<Message> {
     if ui.column_resize.is_some() {
         return event::listen_with(resize::column_resize_listener);
     }
@@ -66,7 +66,7 @@ pub fn subscription(ui: &FileListUi) -> Subscription<Message> {
     Subscription::none()
 }
 
-fn begin_sort(ui: &mut FileListUi, model: &ExplorerState) -> Task<Message> {
+fn begin_sort(ui: &mut FileList, model: &ExplorerState) -> Task<Message> {
     if model.file_list.entries.is_empty() {
         ui.sorting = false;
         return Task::none();
@@ -76,7 +76,7 @@ fn begin_sort(ui: &mut FileListUi, model: &ExplorerState) -> Task<Message> {
     sort_entries_task(model, ui.sort, ui.sort_id)
 }
 
-fn apply_sort_click(ui: &mut FileListUi, model: &ExplorerState, column: columns::Column) -> Task<Message> {
+fn apply_sort_click(ui: &mut FileList, model: &ExplorerState, column: columns::Column) -> Task<Message> {
     if ui.sort.column == column {
         ui.sort.direction = match ui.sort.direction {
             SortDirection::Ascending => SortDirection::Descending,
@@ -90,7 +90,7 @@ fn apply_sort_click(ui: &mut FileListUi, model: &ExplorerState, column: columns:
 }
 
 pub fn update(
-    ui: &mut FileListUi,
+    ui: &mut FileList,
     model: &mut ExplorerState,
     message: Message,
 ) -> (Task<Message>, Option<Action>) {
@@ -226,7 +226,7 @@ pub fn update(
     }
 }
 
-pub fn view<'a>(ui: &FileListUi, model: &'a ExplorerState) -> Element<'a, Message> {
+pub fn view<'a>(ui: &FileList, model: &'a ExplorerState) -> Element<'a, Message> {
     let bundle = model.bundle;
     let empty_label = bundle.tr(ids::FOLDER_EMPTY);
     let resizing = ui.column_resize.map(|active| active.column);
