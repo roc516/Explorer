@@ -1,4 +1,4 @@
-use explorer_app::ExplorerModel;
+use explorer_app::ExplorerState;
 use iced::window as iced_window;
 use iced::widget::{container, text_input};
 use iced::{alignment, Element, Fill};
@@ -15,7 +15,7 @@ pub fn address_bar<'a>(
     editing: bool,
     address_input: &'a str,
     placeholder: String,
-    model: &'a ExplorerModel,
+    model: &'a ExplorerState,
     window_id: iced_window::Id,
 ) -> Element<'a, AppMessage> {
     container(if editing {

@@ -38,7 +38,7 @@ pub struct TreeRow {
     pub expandable: bool,
 }
 
-pub struct DirectoryTree {
+pub struct TreeState {
     roots: Vec<TreeNode>,
     expanded: BTreeSet<PathBuf>,
     children: HashMap<PathBuf, Vec<TreeNode>>,
@@ -46,7 +46,7 @@ pub struct DirectoryTree {
     selected: Option<PathBuf>,
 }
 
-impl DirectoryTree {
+impl TreeState {
     pub fn new() -> Self {
         let root = if cfg!(windows) {
             PathBuf::from("C:\\")
@@ -84,7 +84,6 @@ impl DirectoryTree {
         rows
     }
 
-    /// Expand/collapse. When expand needs a load, returns the directory to `list`.
     pub fn toggle(&mut self, path: PathBuf) -> Option<Arc<dyn DirEntry>> {
         if self.expanded.contains(&path) {
             self.expanded.remove(&path);
@@ -123,14 +122,12 @@ impl DirectoryTree {
         self.next_pending_load()
     }
 
-    /// Drop cached listings and reload expanded folders (and host roots when applicable).
     pub fn refresh(&mut self) -> Option<Arc<dyn DirEntry>> {
         self.children.clear();
         self.loading.clear();
         self.next_pending_load()
     }
 
-    /// Mark ancestors expanded and return the next directory that still needs listing.
     pub fn sync_selection(&mut self, current: &Path) -> Option<Arc<dyn DirEntry>> {
         self.selected = Some(current.to_path_buf());
         self.next_sync_load(current)
@@ -147,7 +144,6 @@ impl DirectoryTree {
         None
     }
 
-    /// Next directory to list: toward selection first, then other expanded folders.
     fn next_pending_load(&mut self) -> Option<Arc<dyn DirEntry>> {
         if let Some(selected) = self.selected.clone() {
             if let Some(entry) = self.next_sync_load(selected.as_path()) {
@@ -216,13 +212,12 @@ impl DirectoryTree {
     }
 }
 
-impl Default for DirectoryTree {
+impl Default for TreeState {
     fn default() -> Self {
         Self::new()
     }
 }
 
-/// List directory children for the tree via the retained [`DirEntry`] handle.
 pub fn load_tree_children(dir: &Arc<dyn DirEntry>) -> Result<Vec<TreeNode>, String> {
     Ok(dir
         .list()?

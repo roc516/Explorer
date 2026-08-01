@@ -1,4 +1,4 @@
-use explorer_app::{breadcrumbs, mount_root_label, ExplorerModel};
+use explorer_app::{breadcrumbs, mount_root_label, ExplorerState};
 use iced::window as iced_window;
 use iced::widget::{button, container, mouse_area, row, scrollable, text};
 use iced::{alignment, Element, Fill, Theme};
@@ -9,7 +9,7 @@ use crate::message::{window as window_msg, Message as AppMessage};
 use super::Message;
 
 pub fn breadcrumb_bar(
-    model: &ExplorerModel,
+    model: &ExplorerState,
     window_id: iced_window::Id,
 ) -> Element<'static, AppMessage> {
     let root_label = Some(mount_root_label());

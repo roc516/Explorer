@@ -11,7 +11,7 @@ use std::path::PathBuf;
 
 use explorer_core::navigation_parent;
 use explorer_app::{
-    ids, AddressTarget, ExplorerModel, LanguageBundle, ModelError, NavigationHistory,
+    ids, AddressTarget, ExplorerState, LanguageBundle, ModelError, NavigationHistory,
 };
 use iced::window as iced_window;
 use iced::widget::{container, row};
@@ -32,7 +32,7 @@ pub struct Toolbar {
 }
 
 impl Toolbar {
-    pub fn new(model: &ExplorerModel) -> Self {
+    pub fn new(model: &ExplorerState) -> Self {
         Self {
             navigation: NavigationHistory::new(model.current_path().to_path_buf()),
             address_input: model.internal_display(),
@@ -49,14 +49,14 @@ impl Toolbar {
         self.address_editing
     }
 
-    pub fn cancel_address_edit(&mut self, model: &ExplorerModel) {
+    pub fn cancel_address_edit(&mut self, model: &ExplorerState) {
         self.address_editing = false;
         self.address_input = model.internal_display();
     }
 
     /// Sync address bar after a directory finished loading.
     /// Returns a navigation path that should be selected in the file list, if any.
-    pub fn on_directory_loaded(&mut self, model: &ExplorerModel) -> Option<PathBuf> {
+    pub fn on_directory_loaded(&mut self, model: &ExplorerState) -> Option<PathBuf> {
         self.address_editing = false;
         if let Some(reveal) = self.reveal_path.take() {
             self.address_input = reveal.display().to_string();
@@ -70,7 +70,7 @@ impl Toolbar {
     pub fn update(
         &mut self,
         message: Message,
-        model: &mut ExplorerModel,
+        model: &mut ExplorerState,
     ) -> (Task<window_msg::Message>, Option<Action>) {
         match message {
             Message::GoUp => {
@@ -124,7 +124,7 @@ impl Toolbar {
     pub fn view<'a>(
         &'a self,
         bundle: LanguageBundle,
-        model: &'a ExplorerModel,
+        model: &'a ExplorerState,
         window_id: iced_window::Id,
     ) -> Element<'a, AppMessage> {
         let address_placeholder = bundle.tr(ids::TOOLBAR_ADDRESS_PLACEHOLDER);
@@ -156,7 +156,7 @@ impl Toolbar {
         .into()
     }
 
-    fn submit_address(&mut self, model: &mut ExplorerModel) -> Option<Action> {
+    fn submit_address(&mut self, model: &mut ExplorerState) -> Option<Action> {
         self.address_editing = false;
 
         match model.resolve_address(&self.address_input) {
@@ -176,9 +176,9 @@ impl Toolbar {
 
                 if parent_nav == model.current_path() {
                     self.address_input = path.display().to_string();
-                    model.error = None;
+                    model.file_list.error = None;
                     model.select_path(&path);
-                    model.status = explorer_app::StatusInfo::ItemCount(model.entries.len());
+                    model.file_list.status = explorer_app::StatusInfo::ItemCount(model.file_list.entries.len());
                     return None;
                 }
 

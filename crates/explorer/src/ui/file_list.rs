@@ -10,7 +10,7 @@ mod task;
 pub use message::{Action, Message};
 pub use task::load_directory_from_dir;
 
-use explorer_app::{ids, ExplorerModel};
+use explorer_app::{ids, ExplorerState};
 use iced::event;
 use iced::widget::{column, container, rule, scrollable, text};
 use iced::{Element, Fill, Subscription, Task};
@@ -59,8 +59,8 @@ impl FileList {
         Subscription::none()
     }
 
-    fn begin_sort(&mut self, model: &ExplorerModel) -> Task<Message> {
-        if model.entries.is_empty() {
+    fn begin_sort(&mut self, model: &ExplorerState) -> Task<Message> {
+        if model.file_list.entries.is_empty() {
             self.sorting = false;
             return Task::none();
         }
@@ -69,7 +69,7 @@ impl FileList {
         sort_entries_task(model, self.sort, self.sort_id)
     }
 
-    fn apply_sort_click(&mut self, model: &ExplorerModel, column: columns::Column) -> Task<Message> {
+    fn apply_sort_click(&mut self, model: &ExplorerState, column: columns::Column) -> Task<Message> {
         if self.sort.column == column {
             self.sort.direction = match self.sort.direction {
                 SortDirection::Ascending => SortDirection::Descending,
@@ -84,7 +84,7 @@ impl FileList {
 
     pub fn update(
         &mut self,
-        model: &mut ExplorerModel,
+        model: &mut ExplorerState,
         message: Message,
     ) -> (Task<Message>, Option<Action>) {
         match message {
@@ -130,8 +130,8 @@ impl FileList {
                 selected_index,
             } => {
                 if id == self.sort_id {
-                    model.entries = entries;
-                    model.selected_index = selected_index;
+                    model.file_list.entries = entries;
+                    model.file_list.selected_index = selected_index;
                     self.sorting = false;
                 }
                 (Task::none(), None)
@@ -219,7 +219,7 @@ impl FileList {
         }
     }
 
-    pub fn view<'a>(&self, model: &'a ExplorerModel) -> Element<'a, Message> {
+    pub fn view<'a>(&self, model: &'a ExplorerState) -> Element<'a, Message> {
         let bundle = model.bundle;
         let empty_label = bundle.tr(ids::FOLDER_EMPTY);
         let resizing = self.column_resize.map(|active| active.column);
@@ -240,16 +240,17 @@ impl FileList {
             self.hovered_column,
         );
 
-        let body: Element<'a, Message> = if model.loading || self.sorting {
+        let body: Element<'a, Message> = if model.file_list.loading || self.sorting {
             crate::ui::loading::view_tr(bundle)
         } else {
             let list = if let Some(error) = model.error_text() {
                 column![container(text(error).size(14)).padding([SPACE_LG, PAGE_PADDING_H])]
-            } else if model.entries.is_empty() {
+            } else if model.file_list.entries.is_empty() {
                 column![container(text(empty_label).size(14)).padding([SPACE_LG, PAGE_PADDING_H])]
             } else {
                 column(
                     model
+                        .file_list
                         .entries
                         .iter()
                         .enumerate()
@@ -257,7 +258,7 @@ impl FileList {
                             row::file_row(
                                 index,
                                 entry,
-                                model.selected_index == Some(index),
+                                model.file_list.selected_index == Some(index),
                                 &bundle,
                                 self.column_order,
                                 &self.column_widths,

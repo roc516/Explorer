@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use explorer_core::{BlockDevice, DirEntry};
-use explorer_app::{load_tree_children, DirectoryTree as DirectoryTreeState, TreeNode, TreeRow};
+use explorer_app::{load_tree_children, TreeState, TreeNode, TreeRow};
 use iced::widget::{button, column, container, mouse_area, row, scrollable, text, Space};
 use iced::{alignment, Element, Fill, Length, Task, Theme};
 
@@ -30,20 +30,20 @@ pub enum Action {
 }
 
 pub struct DirectoryTree {
-    state: DirectoryTreeState,
+    state: TreeState,
     width: Length,
 }
 
 impl DirectoryTree {
     pub fn new() -> Self {
-        Self::with_tree(DirectoryTreeState::new())
+        Self::with_tree(TreeState::new())
     }
 
     pub fn for_mounted(device: BlockDevice) -> Self {
-        Self::with_tree(DirectoryTreeState::for_mounted(device))
+        Self::with_tree(TreeState::for_mounted(device))
     }
 
-    fn with_tree(state: DirectoryTreeState) -> Self {
+    fn with_tree(state: TreeState) -> Self {
         Self {
             state,
             width: Length::Fixed(NAV_PANE_WIDTH),

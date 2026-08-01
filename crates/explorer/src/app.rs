@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use explorer_core::BlockDevice;
 use explorer_app::{
-    detect_system_locale, ids, ExplorerModel, Language, Locale,
+    detect_system_locale, ids, ExplorerState, Language, Locale,
 };
 use iced::keyboard;
 use iced::theme::Mode;
@@ -38,7 +38,7 @@ pub struct App {
 }
 
 struct Explorer {
-    model: ExplorerModel,
+    model: ExplorerState,
     toolbar: Toolbar,
     directory_tree: DirectoryTree,
     file_list: FileList,
@@ -171,17 +171,25 @@ impl App {
 
     fn on_window_opened(&mut self, id: window::Id, launch: Launch) -> Task<Message> {
         let locale = self.language.resolve(self.system_locale);
-        let explorer = match launch {
+        let mut explorer = match launch {
             Launch::Local => Explorer::new_local(locale),
             Launch::Archive(device) => Explorer::new_mounted(device, locale),
         };
 
         let load_dir = explorer.model.current_dir().clone();
+        let init_path = explorer.model.current_path().to_path_buf();
+        let init_tree_task = explorer
+            .directory_tree
+            .sync_path(&init_path)
+            .map(move |msg| Message::Window(id, window_msg::Message::Tree(msg)));
+
         self.focused_window = Some(id);
         self.windows.insert(id, explorer);
 
-        file_list::load_directory_from_dir(load_dir)
-            .map(move |message| Message::Window(id, window_msg::Message::FileList(message)))
+        let load_task = file_list::load_directory_from_dir(load_dir)
+            .map(move |message| Message::Window(id, window_msg::Message::FileList(message)));
+
+        Task::batch(vec![init_tree_task, load_task])
     }
 
     fn on_window_closed(&mut self, id: window::Id) -> Task<Message> {
@@ -260,7 +268,7 @@ impl App {
 
 impl Explorer {
     fn new_local(locale: Locale) -> Self {
-        let mut model = ExplorerModel::new_local();
+        let mut model = ExplorerState::new_local();
         model.set_locale(locale);
         let toolbar = Toolbar::new(&model);
         Self {
@@ -275,7 +283,7 @@ impl Explorer {
     }
 
     fn new_mounted(device: BlockDevice, locale: Locale) -> Self {
-        let mut model = ExplorerModel::new_mounted(device.clone());
+        let mut model = ExplorerState::new_mounted(device.clone());
         model.set_locale(locale);
         let toolbar = Toolbar::new(&model);
         Self {
@@ -576,7 +584,7 @@ impl Explorer {
             }
             _ if self.preview_state.is_some() || settings_open => Task::none(),
             keyboard::Key::Named(keyboard::key::Named::Enter) => {
-                if let Some(index) = self.model.selected_index {
+                if let Some(index) = self.model.file_list.selected_index {
                     let (task, _) =
                         self.update_file_list(file_list::Message::EntryDoubleClicked(index));
                     return task;

@@ -1,4 +1,4 @@
-use explorer_app::ExplorerModel;
+use explorer_app::ExplorerState;
 use iced::widget::{container, row, text, Space};
 use iced::{alignment, Element, Fill, Theme};
 
@@ -12,7 +12,7 @@ impl StatusBar {
         Self
     }
 
-    pub fn view(&self, model: &ExplorerModel) -> Element<'static, Message> {
+    pub fn view(&self, model: &ExplorerState) -> Element<'static, Message> {
         let path_text = model.display_path();
 
         container(

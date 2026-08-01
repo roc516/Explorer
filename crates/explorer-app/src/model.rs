@@ -12,6 +12,11 @@ use crate::entry::{mount_root_dir, FileEntry};
 use crate::i18n::{ids, LanguageBundle};
 use crate::preview;
 
+pub mod file_list;
+pub mod tree;
+pub use file_list::FileListState;
+pub use tree::{load_tree_children, TreeState, TreeNode, TreeRow};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModelError {
     InvalidPath,
@@ -30,14 +35,12 @@ pub enum StatusInfo {
 
 #[derive(Debug, Clone)]
 pub enum OpenEntryAction {
-    /// Navigate into a listed directory (load via [`DirEntry::list`]).
     Navigate(Arc<dyn DirEntry>),
     Preview(explorer_core::FsEntry),
     OpenArchive(BlockDevice),
     OpenedSystem { name: String },
 }
 
-/// Result of resolving an address-bar input in the current window.
 #[derive(Debug, Clone)]
 pub enum AddressTarget {
     Directory(Arc<dyn DirEntry>),
@@ -45,20 +48,14 @@ pub enum AddressTarget {
 }
 
 #[derive(Clone)]
-pub struct ExplorerModel {
-    /// Current directory handle (listable).
+pub struct ExplorerState {
     current_dir: Arc<dyn DirEntry>,
-    /// Mount backing this window (volume-root mount for disk windows, archive mount otherwise).
     mount: Arc<dyn MountedFs>,
-    pub entries: Vec<FileEntry>,
-    pub selected_index: Option<usize>,
-    pub loading: bool,
-    pub error: Option<ModelError>,
-    pub status: StatusInfo,
+    pub file_list: FileListState,
     pub bundle: LanguageBundle,
 }
 
-impl ExplorerModel {
+impl ExplorerState {
     pub fn new_local() -> Self {
         let initial = std::env::var("HOME")
             .or_else(|_| std::env::var("USERPROFILE"))
@@ -97,11 +94,7 @@ impl ExplorerModel {
         Self {
             current_dir,
             mount,
-            entries: Vec::new(),
-            selected_index: None,
-            loading: true,
-            error: None,
-            status: StatusInfo::Loading,
+            file_list: FileListState::new(),
             bundle,
         }
     }
@@ -136,21 +129,11 @@ impl ExplorerModel {
     }
 
     pub fn status_text(&self) -> String {
-        match &self.status {
-            StatusInfo::Loading => self.bundle.tr(ids::STATUS_LOADING),
-            StatusInfo::ItemCount(count) => self.bundle.format_count(*count),
-            StatusInfo::LoadFailed => self.bundle.tr(ids::STATUS_LOAD_FAILED),
-            StatusInfo::Opened { name } => self.bundle.format_opened(name),
-            StatusInfo::Path(path) => path.clone(),
-        }
+        self.file_list.status_text(&self.bundle)
     }
 
     pub fn error_text(&self) -> Option<String> {
-        self.error.as_ref().map(|error| match error {
-            ModelError::InvalidPath => self.bundle.tr(ids::ERROR_INVALID_PATH),
-            ModelError::NotDirectory => self.bundle.tr(ids::ERROR_NOT_DIRECTORY),
-            ModelError::External(message) => message.clone(),
-        })
+        self.file_list.error_text(&self.bundle)
     }
 
     pub fn can_go_up(&self) -> bool {
@@ -158,12 +141,9 @@ impl ExplorerModel {
     }
 
     pub fn begin_load(&mut self) {
-        self.loading = true;
-        self.error = None;
-        self.status = StatusInfo::Loading;
+        self.file_list.begin_load();
     }
 
-    /// Parse address-bar input to an in-window navigation path.
     pub fn parse_address(&self, input: &str) -> PathBuf {
         let trimmed = input.trim();
         if trimmed.is_empty() {
@@ -173,7 +153,6 @@ impl ExplorerModel {
         if path.has_root() { path } else { self.current_path().join(path) }
     }
 
-    /// Resolve address-bar input to a directory handle or file path.
     pub fn resolve_address(&self, input: &str) -> Result<AddressTarget, ModelError> {
         let path = self.parse_address(input);
         let mount = &self.mount;
@@ -188,7 +167,6 @@ impl ExplorerModel {
         }
     }
 
-    /// Resolve a navigation path to a [`DirEntry`] in this window.
     pub fn resolve_dir(&self, path: PathBuf) -> Result<Arc<dyn DirEntry>, ModelError> {
         let mount = &self.mount;
         if path.as_os_str().is_empty() {
@@ -202,7 +180,6 @@ impl ExplorerModel {
         }
     }
 
-    /// Validate and begin loading a navigation path in this window.
     pub fn navigate(&mut self, path: PathBuf) -> Option<Arc<dyn DirEntry>> {
         match self.resolve_dir(path) {
             Ok(dir) => {
@@ -216,7 +193,6 @@ impl ExplorerModel {
         }
     }
 
-    /// Begin loading a listed directory (skip re-validation; entry came from a listing).
     pub fn navigate_dir(&mut self, dir: Arc<dyn DirEntry>) -> Arc<dyn DirEntry> {
         self.begin_load();
         dir
@@ -233,15 +209,15 @@ impl ExplorerModel {
     }
 
     pub fn select_entry(&mut self, index: usize) {
-        self.selected_index = Some(index);
+        self.file_list.select_entry(index);
     }
 
     pub fn select_path(&mut self, path: &Path) {
-        self.selected_index = self.entries.iter().position(|entry| entry.path() == path);
+        self.file_list.select_path(path);
     }
 
     pub fn open_entry(&mut self, index: usize) -> Option<OpenEntryAction> {
-        let entry = self.entries.get(index)?;
+        let entry = self.file_list.entries.get(index)?;
 
         if let Some(dir) = entry.as_dir() {
             let dir = dir.clone();
@@ -259,7 +235,7 @@ impl ExplorerModel {
 
         match preview::open_with_system(entry.fs_entry()) {
             Ok(()) => {
-                self.status = StatusInfo::Opened {
+                self.file_list.status = StatusInfo::Opened {
                     name: entry.name().to_string(),
                 };
                 Some(OpenEntryAction::OpenedSystem {
@@ -267,8 +243,8 @@ impl ExplorerModel {
                 })
             }
             Err(message) => {
-                self.error = Some(ModelError::External(message));
-                self.status = StatusInfo::LoadFailed;
+                self.file_list.error = Some(ModelError::External(message));
+                self.file_list.status = StatusInfo::LoadFailed;
                 None
             }
         }
@@ -287,22 +263,10 @@ impl ExplorerModel {
         &mut self,
         result: Result<(Arc<dyn DirEntry>, Vec<FileEntry>), String>,
     ) {
-        self.loading = false;
-        match result {
-            Ok((dir, entries)) => {
-                self.current_dir = dir;
-                self.entries = entries;
-                self.selected_index = None;
-                self.error = None;
-                self.status = StatusInfo::ItemCount(self.entries.len());
-            }
-            Err(message) => {
-                self.entries.clear();
-                self.selected_index = None;
-                self.error = Some(ModelError::External(message));
-                self.status = StatusInfo::LoadFailed;
-            }
+        if let Ok((ref dir, _)) = result {
+            self.current_dir = dir.clone();
         }
+        self.file_list.on_directory_loaded(result);
     }
 
     pub fn set_path_error(&mut self, error: ModelError) {
@@ -311,7 +275,7 @@ impl ExplorerModel {
             ModelError::NotDirectory => self.bundle.tr(ids::ERROR_NOT_DIRECTORY),
             ModelError::External(message) => message.clone(),
         };
-        self.error = Some(error);
-        self.status = StatusInfo::Path(message);
+        self.file_list.error = Some(error);
+        self.file_list.status = StatusInfo::Path(message);
     }
 }

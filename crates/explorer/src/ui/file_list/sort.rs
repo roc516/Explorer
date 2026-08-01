@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::path::PathBuf;
 
-use explorer_app::{ExplorerModel, FileEntry, LanguageBundle};
+use explorer_app::{ExplorerState, FileEntry, LanguageBundle};
 use iced::Task;
 
 use super::columns::Column;
@@ -29,18 +29,19 @@ impl Default for SortState {
 }
 
 pub(crate) fn sort_entries_task(
-    model: &ExplorerModel,
+    model: &ExplorerState,
     sort: SortState,
     id: u64,
 ) -> Task<Message> {
-    if model.entries.is_empty() {
+    if model.file_list.entries.is_empty() {
         return Task::none();
     }
 
     let selected_path = model
+        .file_list
         .selected_index
-        .and_then(|index| model.entries.get(index).map(|entry| entry.path().to_path_buf()));
-    let entries = model.entries.clone();
+        .and_then(|index| model.file_list.entries.get(index).map(|entry| entry.path().to_path_buf()));
+    let entries = model.file_list.entries.clone();
     let bundle = model.bundle;
 
     Task::perform(
